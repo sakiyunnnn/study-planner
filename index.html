@@ -1,0 +1,3252 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>我的讀書計劃</title>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;500;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Noto Serif TC", serif;
+      background: #fff;
+      color: #333;
+    }
+    .app { max-width: 1260px; margin: auto; padding: 24px 20px 36px; }
+    h1 {
+      margin: 0 0 22px;
+      text-align: center;
+      color: #404040;
+      font-family: "Playfair Display", "Noto Serif TC", serif;
+      font-size: 42px;
+    }
+
+    .top-bar, .mobile-top-bar {
+      display:flex; justify-content:space-between; align-items:center;
+      gap:12px; margin-bottom:16px;
+    }
+    .mobile-top-bar { display:none; }
+    .top-right, .top-actions { display:flex; align-items:center; gap:10px; }
+
+    .switch { position: relative; display: inline-block; width: 52px; height: 28px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; inset: 0; cursor: pointer;
+      background-color: #ddd; transition: .3s; border-radius: 999px;
+    }
+    .slider:before {
+      position: absolute; content: "";
+      height: 22px; width: 22px; left: 3px; bottom: 3px;
+      background-color: white; transition: .3s; border-radius: 50%;
+    }
+    input:checked + .slider { background-color: #666; }
+    input:checked + .slider:before { transform: translateX(24px); }
+
+    button, input, textarea {
+      font-family: "Noto Serif TC", serif;
+    }
+
+    button {
+      background: #f7f7f7;
+      border: 1px solid #e3e3e3;
+      padding: 8px 12px;
+      border-radius: 12px;
+      color: #555;
+      cursor: pointer;
+    }
+    button:hover { background: #f1f1f1; }
+    button.small { font-size: 12px; min-width: 40px; }
+    .save-btn { background: #5f5f5f; color: #fff; border-color: #5f5f5f; }
+    .save-btn:hover { background: #515151; }
+    .delete-btn { background:#fafafa; color:#b24; border-color:#ececec; }
+    .icon-btn { min-width: 42px; font-size: 18px; padding: 8px 10px; }
+    .menu-btn { min-width: 42px; font-size: 20px; line-height: 1; }
+
+    .layout {
+      display:grid;
+      grid-template-columns: 1fr 1.02fr;
+      gap:22px;
+      align-items:start;
+    }
+    .left-stack, .right-stack { display:grid; gap:18px; }
+    .panel {
+      background:#fff;
+      border-radius:24px;
+      padding:20px;
+      box-shadow:0 10px 24px rgba(0,0,0,.06);
+      border:1px solid #f0f0f0;
+    }
+    .panel-title-row {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      margin-bottom:12px;
+    }
+    .panel-title {
+      font-size:30px;
+      font-weight:700;
+      color:#404040;
+      line-height:1.15;
+    }
+    .panel-subtitle {
+      color:#777;
+      font-size:15px;
+      margin-bottom:14px;
+      line-height:1.6;
+    }
+
+    .desktop-only { display:block; }
+    .mobile-only { display:none; }
+    .mobile-tabs {
+      display:none;
+      grid-template-columns:repeat(5,1fr);
+      gap:8px;
+      margin-bottom:14px;
+    }
+    .mobile-tab {
+      border:none; border-radius:999px; padding:10px 12px;
+      background:#f0f0f0; color:#555; font-weight:bold; cursor:pointer;
+    }
+    .mobile-tab.active { background:#5f5f5f; color:#fff; }
+    .mobile-panel-hidden { display:none !important; }
+
+    .section-tab {
+      border-radius:999px;
+      padding:8px 14px;
+      font-size:14px;
+    }
+    .section-tab.active {
+      background:#5f5f5f;
+      color:#fff;
+      border-color:#5f5f5f;
+    }
+
+    .today-summary-grid {
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:12px;
+      margin-bottom:12px;
+    }
+    .today-summary-box {
+      background:#fafafa;
+      border-radius:16px;
+      padding:14px;
+      border:1px solid #efefef;
+    }
+    .summary-number {
+      font-size:30px;
+      font-weight:bold;
+      color:#444;
+      margin-top:4px;
+    }
+    .overview-section { margin-top:14px; }
+    .overview-section-title {
+      font-size:15px;
+      color:#777;
+      margin-bottom:10px;
+    }
+
+    .today-drop-zone {
+      min-height:72px;
+      border-radius:16px;
+      transition:.18s;
+    }
+    .today-drop-zone.drag-hover {
+      outline:2px dashed #cfcfcf;
+      background:#fafafa;
+    }
+
+    .today-task-list, .today-event-list {
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+
+    .today-task-card, .event-card, .history-card {
+      background:#fff;
+      border-radius:16px;
+      padding:12px 14px;
+      box-shadow:0 4px 10px rgba(0,0,0,.05);
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      border:1px solid #f1f1f1;
+    }
+
+    .today-task-main {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .today-task-name, .event-main-title, .history-task-name {
+      font-size:16px;
+      font-weight:700;
+    }
+    .today-task-meta, .event-meta, .history-meta {
+      font-size:13px;
+      color:#888;
+      margin-top:2px;
+    }
+    .ended { opacity:.66; }
+    .ended .today-task-name, .ended .event-main-title { text-decoration:line-through; }
+
+    .calendar-shell {
+      background:#fafafa;
+      border-radius:16px;
+      padding:14px;
+      border:1px solid #efefef;
+    }
+    .calendar-header {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:12px;
+    }
+    .calendar-header button {
+      background:#f6f6f6;
+      border:1px solid #e3e3e3;
+      border-radius:999px;
+    }
+    .calendar-month-label {
+      font-weight:bold;
+      color:#444;
+      font-size:18px;
+    }
+    .calendar-weekdays, .calendar-grid {
+      display:grid;
+      grid-template-columns:repeat(7,1fr);
+      gap:6px;
+    }
+    .calendar-weekdays div {
+      text-align:center;
+      color:#888;
+      font-size:12px;
+      padding-bottom:4px;
+    }
+    .calendar-day {
+      border:1px solid #ececec;
+      background:#fff;
+      border-radius:14px;
+      min-height:64px;
+      padding:6px;
+      cursor:pointer;
+      color:#666;
+      box-shadow:0 2px 6px rgba(0,0,0,.04);
+      display:flex;
+      flex-direction:column;
+      justify-content:flex-start;
+    }
+    .calendar-day.muted-day { opacity:.45; }
+    .calendar-day.selected { background:#666; color:#fff; }
+    .calendar-day.today { outline:2px solid #ffb3c6; }
+    .calendar-day.drag-hover { background:#f1f1f1; }
+    .calendar-day-top {
+      width:100%;
+      display:flex;
+      justify-content:space-between;
+    }
+    .calendar-markers {
+      display:flex;
+      gap:4px;
+      margin-top:4px;
+      flex-wrap:wrap;
+    }
+    .calendar-marker {
+      width:8px;
+      height:8px;
+      border-radius:50%;
+      background:#bbb;
+    }
+    .calendar-event-dot { background:#444; }
+    .calendar-task-dot { background:#999; }
+
+    .calendar-detail {
+      margin-top:14px;
+      background:#fff;
+      border-radius:16px;
+      padding:14px;
+      box-shadow:0 4px 10px rgba(0,0,0,.05);
+      border:1px solid #f1f1f1;
+    }
+    .detail-section-title {
+      font-size:14px;
+      color:#777;
+      margin:12px 0 8px;
+    }
+
+    .category-list, .item-list {
+      display:flex;
+      flex-direction:column;
+      gap:0;
+    }
+
+    .category {
+      background:#fff;
+      border-radius:20px;
+      padding:16px 18px;
+      margin-bottom:20px;
+      box-shadow:0 8px 18px rgba(0,0,0,.06);
+      border:1px solid #eee;
+    }
+
+    .item {
+      margin-top:16px;
+      margin-left:22px;
+      padding:16px;
+      border-radius:18px;
+      border:1px solid rgba(0,0,0,.08);
+      box-shadow:inset 0 0 0 1px rgba(255,255,255,.6), 0 4px 10px rgba(0,0,0,.03);
+    }
+
+    .category-header, .item-header {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+    }
+
+    .task-row {
+      background:#fff;
+      padding:14px 16px;
+      border-radius:16px;
+      margin-bottom:10px;
+      border-left:4px solid #ddd;
+      border:1px solid #f0f0f0;
+      box-shadow:0 4px 10px rgba(0,0,0,.04);
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+
+    .task-row-top,
+    .task-row-bottom {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      width:100%;
+    }
+
+    .task-row-left {
+      display:flex;
+      align-items:center;
+      gap:8px;
+      min-width:0;
+      flex:1;
+      flex-wrap:wrap;
+    }
+
+    .task-row-right {
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+
+    .category-title, .item-title, .task-main {
+      min-height:28px;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      min-width: 0;
+      flex-wrap: wrap;
+    }
+    .category-title { font-size:24px; font-weight:700; }
+    .item-title { font-size:20px; font-weight:700; }
+
+    .tasks, .done-task-group {
+      margin-top:12px;
+      margin-left:12px;
+    }
+
+    .task-row.done .task-text {
+      color:#bbb;
+      text-decoration:line-through;
+    }
+    .task-symbol {
+      font-weight:bold;
+      min-width:18px;
+      display:inline-flex;
+      justify-content:center;
+      color:#666;
+      font-size:16px;
+    }
+    .task-text {
+      word-break:break-word;
+      font-size:18px;
+      font-weight:700;
+      min-width: 0;
+    }
+    .task-time {
+      font-size:15px;
+      color:#777;
+      white-space:nowrap;
+    }
+    .date-chip {
+      font-size:13px;
+      color:#555;
+      background:#f3f3f3;
+      padding:2px 8px;
+      border-radius:999px;
+      display:inline-flex;
+      align-items:center;
+      height:22px;
+    }
+    .muted { color:#888; font-size:14px; }
+
+    .title-wrap {
+      display:flex;
+      align-items:center;
+      gap:10px;
+      width:100%;
+      min-width:0;
+      flex-wrap: wrap;
+    }
+
+    .drag-handle, .drag-task-handle, .schedule-drag-chip {
+      display:none !important;
+    }
+
+    .editing .category-header,
+    .editing .item-header,
+    .editing .tasks-active .task-row {
+      cursor: grab;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+
+    .editing .task-row button,
+    .editing .category-header button,
+    .editing .item-header button,
+    .editing input,
+    .editing textarea {
+      cursor: pointer;
+      user-select: auto;
+      -webkit-user-select: auto;
+    }
+
+    .edit-only { display:none; }
+    .editing .edit-only { display:inline-flex; }
+
+    .inline-edit {
+      display:none;
+      gap:6px;
+      align-items:center;
+      width:100%;
+      flex-wrap:wrap;
+    }
+    .inline-edit.show { display:flex; }
+
+    .inline-edit input,
+    .event-form input,
+    .event-form textarea {
+      flex:1;
+      min-width:120px;
+      padding:9px 10px;
+      border-radius:10px;
+      border:1px solid #ddd;
+      background:#fff;
+      color:#555;
+      font-size:14px;
+    }
+
+    .event-form textarea { min-height:84px; resize:vertical; }
+    .event-form { display:grid; gap:10px; margin-top:12px; }
+    .event-form-row { display:flex; gap:8px; flex-wrap:wrap; }
+    .time-pair { display:flex; align-items:center; gap:8px; }
+    .time-box {
+      width:72px !important;
+      min-width:72px !important;
+      text-align:center;
+    }
+    .time-colon { color:#666; font-weight:700; }
+
+    .time-menu-btn, .color-menu-btn, .event-menu-btn, .collapse-btn {
+      background:#fff;
+      color:#555;
+      border:1px solid #e2e2e2;
+      padding:8px 12px;
+      border-radius:12px;
+      font-size:14px;
+      min-width:44px;
+    }
+
+    .collapse-btn {
+      padding:6px 10px;
+      border-radius:999px;
+      line-height:1;
+    }
+
+    .sub-collapse-row {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      margin:8px 0 10px;
+    }
+
+    .done-task-group {
+      background:#fbfbfb;
+      border:1px solid #efefef;
+      border-radius:16px;
+      padding:12px;
+    }
+
+    .color-btn-circle {
+      width:18px;
+      height:18px;
+      border-radius:50%;
+      border:2px solid #fff;
+      box-shadow:0 0 0 1px #ddd;
+      display:inline-block;
+    }
+
+    .task-status-wrap {
+      position:relative;
+      display:inline-block;
+      flex-shrink:0;
+    }
+    .task-status-btn {
+      border:none;
+      background:transparent;
+      color:#666;
+      padding:4px 8px;
+      border-radius:8px;
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      cursor:pointer;
+      font-size:16px;
+    }
+    .task-status-btn:hover { background:#f3f3f3; }
+
+    .floating-menu {
+      position:fixed;
+      min-width:132px;
+      background:#fff;
+      border:1px solid #eaeaea;
+      border-radius:12px;
+      box-shadow:0 14px 30px rgba(0,0,0,0.12);
+      padding:6px;
+      z-index:999999;
+      display:none;
+      max-height:70vh;
+      overflow-y:auto;
+    }
+    .floating-menu.show { display:block; }
+    .floating-option {
+      width:100%;
+      border:none;
+      background:transparent;
+      color:#555;
+      text-align:left;
+      padding:10px 12px;
+      border-radius:10px;
+      cursor:pointer;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      font-size:15px;
+    }
+    .floating-option:hover { background:#f6f6f6; }
+    .floating-option.active { background:#efefef; color:#222; }
+    .floating-option.active::after { content:'✓'; margin-left:auto; }
+
+    .color-grid {
+      display:grid;
+      grid-template-columns:repeat(5,1fr);
+      gap:8px;
+      padding:4px;
+    }
+    .color-choice {
+      width:100%;
+      aspect-ratio:1;
+      border-radius:50%;
+      border:2px solid #fff;
+      box-shadow:0 0 0 1px #ddd;
+      cursor:pointer;
+    }
+    .color-choice.active { box-shadow:0 0 0 2px #333; }
+
+    .toast {
+      position:fixed;
+      right:20px;
+      bottom:20px;
+      background:rgba(40,40,40,0.92);
+      color:#fff;
+      padding:10px 14px;
+      border-radius:12px;
+      font-size:14px;
+      opacity:0;
+      transform:translateY(8px);
+      pointer-events:none;
+      transition:.2s ease;
+      z-index:1000000;
+    }
+    .toast.show { opacity:1; transform:translateY(0); }
+
+    .event-type-chip {
+      padding:4px 10px;
+      border-radius:999px;
+      background:#f3f3f3;
+      font-size:12px;
+      color:#555;
+    }
+    .empty-state { color:#999; font-size:14px; padding:10px 0; }
+
+    .ghost-sort {
+      opacity: .45;
+      background: #f5f5f5;
+    }
+
+    .cloud-btn { min-width: 42px; font-size: 17px; }
+    .sync-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: none; align-items: center; justify-content: center; z-index: 1000001; padding: 18px; }
+    .sync-modal-overlay.show { display: flex; }
+    .sync-modal { width: min(720px, 100%); max-height: 88vh; overflow: auto; background: #fff; border-radius: 24px; padding: 20px; box-shadow: 0 18px 44px rgba(0,0,0,.18); border: 1px solid #eee; }
+    .sync-modal h2 { margin: 0 0 10px; font-size: 28px; color: #404040; }
+    .sync-help { color: #777; font-size: 14px; line-height: 1.7; margin-bottom: 12px; }
+    .sync-grid { display: grid; gap: 12px; }
+    .sync-box { background: #fafafa; border: 1px solid #efefef; border-radius: 16px; padding: 14px; }
+    .sync-box-title { font-size: 15px; color: #666; margin-bottom: 8px; }
+    .sync-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .sync-status { font-size: 14px; color: #666; line-height: 1.7; white-space: pre-line; }
+    .sync-input { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #ddd; background: #fff; color: #555; font-size: 14px; margin-top: 8px; }
+    .sync-inline { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .sync-note { font-size: 12px; color: #888; margin-top: 8px; line-height: 1.6; }
+    .cloud-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; background: #d2d2d2; margin-right: 6px; vertical-align: middle; }
+    .cloud-dot.ready { background: #38b000; }
+    .cloud-dot.busy { background: #ffbe0b; }
+    .cloud-userline { font-size: 13px; color: #777; }
+
+    @media (max-width: 860px) {
+      h1 { font-size:34px; }
+      .top-bar { display:none; }
+      .mobile-top-bar { display:flex; }
+      .desktop-only { display:none; }
+      .mobile-only { display:block; }
+      .mobile-tabs { display:grid; }
+      .layout { display:block; }
+      .left-stack, .right-stack { display:none; }
+      .app { padding:20px 14px 28px; }
+      .today-summary-grid { grid-template-columns:1fr; }
+
+      .category-header, .item-header {
+        flex-direction:column;
+        align-items:stretch;
+        gap:8px;
+      }
+
+      .task-row-top,
+      .task-row-bottom,
+      .today-task-card,
+      .event-card,
+      .history-card {
+        flex-direction:column;
+        align-items:stretch;
+      }
+
+      .task-row-right,
+      .task-row-left {
+        justify-content:flex-start;
+      }
+
+      .edit-only {
+        width:100%;
+        flex-wrap:wrap;
+        gap:6px;
+      }
+      .inline-edit {
+        flex-direction:column;
+        align-items:stretch;
+      }
+      .event-form-row { display:grid; grid-template-columns:1fr; width:100%; gap:8px; }
+
+      .mobile-drag-hint { display:none !important; }
+      .editing .tasks-active .task-row,
+      .editing .category-header,
+      .editing .item-header {
+        cursor: default;
+        touch-action: auto;
+      }
+
+      .panel-title { font-size:24px; white-space:nowrap; }
+      .category-title { font-size:20px; }
+      .item-title { font-size:18px; }
+      .task-text { font-size:16px; }
+
+      .mobile-top-bar.mobile-only {
+        display:flex;
+        flex-direction:row;
+        justify-content:space-between;
+        align-items:center;
+        gap:8px;
+        margin-bottom:10px;
+      }
+      .mobile-top-bar .top-right { gap:8px; flex-shrink:0; }
+      .mobile-top-bar .top-actions { margin-left:auto; gap:6px; }
+      .mobile-top-bar .icon-btn,
+      .mobile-top-bar .menu-btn { min-width:42px; width:42px; height:42px; padding:6px; font-size:16px; }
+      .mobile-tabs { grid-template-columns:repeat(3,1fr); gap:8px; }
+      .mobile-tab { padding:10px 8px; white-space:nowrap; }
+
+      .panel { padding:16px; border-radius:20px; }
+      .panel-title-row { align-items:center; gap:8px; flex-wrap:nowrap; }
+      .panel-title-row > div:last-child { flex-shrink:0; }
+      .panel-subtitle { font-size:14px; margin-bottom:12px; }
+
+      .category { padding:12px; border-radius:18px; margin-bottom:14px; }
+      .item { margin-top:12px; margin-left:8px; padding:12px; border-radius:16px; }
+      .tasks, .done-task-group { margin-left:0; }
+      .category-header, .item-header {
+        flex-direction:row;
+        align-items:center;
+        gap:8px;
+      }
+      .title-wrap { gap:6px; flex-wrap:nowrap; }
+      .collapse-btn { min-width:40px; padding:6px 8px; }
+      .edit-only { width:auto; flex-wrap:nowrap; gap:6px; }
+      .inline-edit { flex-direction:row; align-items:center; flex-wrap:nowrap; }
+      .inline-edit input { min-width:0; }
+
+      .task-row { padding:12px; gap:8px; border-radius:16px; }
+      .task-row-top, .task-row-bottom {
+        flex-direction:row;
+        align-items:center;
+        gap:8px;
+      }
+      .task-row-left, .task-row-right {
+        justify-content:flex-start;
+        gap:6px;
+        flex-wrap:wrap;
+      }
+      .task-main { flex-wrap:nowrap; }
+      .time-menu-btn, .color-menu-btn, .event-menu-btn {
+        padding:8px 10px;
+        font-size:14px;
+      }
+
+      .calendar-shell { padding:12px; }
+      .calendar-grid { gap:5px; }
+      .calendar-day {
+        min-height:0;
+        aspect-ratio:1 / 1;
+        border-radius:12px;
+        padding:5px;
+        justify-content:center;
+      }
+      .calendar-day-top { font-size:18px; }
+      .calendar-markers { margin-top:3px; justify-content:center; }
+      .calendar-marker { width:7px; height:7px; }
+
+      .event-form { gap:8px; }
+      .event-form-row {
+        display:flex;
+        flex-direction:row;
+        flex-wrap:nowrap;
+        width:100%;
+        gap:8px;
+      }
+      .event-form-row > * { flex:1; min-width:0; }
+      .time-pair { display:grid; grid-template-columns:1fr auto 1fr; width:100%; }
+      .time-box { width:100% !important; min-width:0 !important; }
+      .event-form textarea { min-height:96px; }
+      .mobile-integrated-section { margin-top:18px; }
+
+      .today-task-card, .event-card, .history-card {
+        flex-direction:row;
+        align-items:center;
+        padding:10px 12px;
+      }
+    }
+
+    .utility-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: none; align-items: center; justify-content: center; z-index: 1000002; padding: 18px; }
+    .utility-modal-overlay.show { display: flex; }
+    .utility-modal { width: min(860px, 100%); max-height: 88vh; overflow: auto; background: #fff; border-radius: 24px; padding: 20px; box-shadow: 0 18px 44px rgba(0,0,0,.18); border: 1px solid #eee; }
+    .utility-modal h2 { margin: 0; font-size: 28px; color:#404040; }
+    .bulk-textarea { width: 100%; min-height: 240px; padding: 12px 14px; border-radius: 14px; border: 1px solid #ddd; resize: vertical; line-height: 1.7; font-size: 15px; background: #fff; color:#444; }
+    .bulk-preview { margin-top: 12px; background:#fafafa; border:1px solid #efefef; border-radius:16px; padding:14px; max-height:280px; overflow:auto; }
+    .bulk-preview ul { margin: 8px 0 8px 22px; padding:0; }
+    .bulk-preview li { margin: 4px 0; }
+    .bulk-skip { color:#999; text-decoration: line-through; }
+    .history-month { margin: 16px 0 8px; font-size: 18px; font-weight: 700; color:#444; }
+    .history-card + .history-card, .event-card + .event-card { margin-top: 10px; }
+    @media (max-width: 860px) { .utility-modal { padding: 16px; border-radius: 20px; } .utility-modal h2 { font-size: 24px; } .bulk-textarea { min-height: 220px; font-size: 14px; } }
+
+  </style>
+</head>
+<body>
+  <div class="app" id="app">
+    <h1>📚 我的讀書計劃</h1>
+
+    <div class="top-bar">
+      <div class="top-right">
+        <span style="color:#666;font-size:14px;">編輯模式</span>
+        <label class="switch">
+          <input type="checkbox" id="editSwitch" onchange="toggleEdit()">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="top-actions">
+        <button class="menu-btn" data-menu-key="appmenu-main" onclick="toggleFloatingMenu('appmenu', event)">⋯</button>
+      </div>
+    </div>
+
+    <div class="mobile-top-bar mobile-only">
+      <div class="top-right">
+        <span style="color:#666;font-size:14px;">編輯模式</span>
+        <label class="switch">
+          <input type="checkbox" id="editSwitchMobile" onchange="toggleEditFromMobile()">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="top-actions">
+        <button class="menu-btn" data-menu-key="appmenu-mobile" onclick="toggleFloatingMenu('appmenu', event)">⋯</button>
+      </div>
+    </div>
+
+    <div class="mobile-tabs mobile-only">
+      <button class="mobile-tab active" onclick="setMobileTab('overview')" id="tab-overview">今日</button>
+      <button class="mobile-tab" onclick="setMobileTab('calendar')" id="tab-calendar">行事曆</button>
+      <button class="mobile-tab" onclick="setMobileTab('todo')" id="tab-todo">To Do</button>
+    </div>
+
+    <div class="layout">
+      <div class="left-stack desktop-only">
+        <section class="panel">
+          <div class="panel-title">今日總覽</div>
+          <div class="panel-subtitle">今天的任務與事件都集中在這裡。任務可在這裡調整順序，無時間事件也能改順序。</div>
+          <div id="today-summary-desktop"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title-row">
+            <div class="panel-title">行事曆</div>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <button class="section-tab" id="calendar-view-week" onclick="setCalendarView('week')">週</button>
+              <button class="section-tab" id="calendar-view-month" onclick="setCalendarView('month')">月</button>
+              <button class="small edit-only" onclick="openEventDraft()">＋</button>
+            </div>
+          </div>
+          <div class="panel-subtitle">可切換週／月視圖，點日期看細節，也能新增事件。</div>
+          <div id="calendar-desktop"></div>
+          <div id="calendar-detail-desktop"></div>
+        </section>
+      </div>
+
+      <div class="right-stack desktop-only">
+        <section class="panel">
+          <div class="panel-title-row">
+            <div class="panel-title">To Do List</div>
+            <div class="edit-only">
+              <button class="small" onclick="addCategoryInline()">＋</button>
+            </div>
+          </div>
+          <div class="panel-subtitle">分類、項目、任務都可拖曳排序。任務卡可直接拖到今日或行事曆日期。</div>
+          <div id="todo-desktop"></div>
+        </section>
+      </div>
+
+      <section class="panel mobile-only mobile-panel-hidden" id="overview-panel-mobile">
+        <div class="panel-title">今日總覽</div>
+        <div class="panel-subtitle">今天的任務與事件都集中在這裡。</div>
+        <div id="today-summary-mobile"></div>
+      </section>
+
+      <section class="panel mobile-only mobile-panel-hidden" id="calendar-panel-mobile">
+        <div class="panel-title-row">
+          <div class="panel-title">行事曆</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button class="section-tab" id="calendar-view-week-mobile" onclick="setCalendarView('week')">週</button>
+            <button class="section-tab" id="calendar-view-month-mobile" onclick="setCalendarView('month')">月</button>
+            <button class="small edit-only" onclick="openEventDraft()">＋</button>
+          </div>
+        </div>
+        <div class="panel-subtitle">可切換週／月視圖，也能新增事件。</div>
+        <div id="calendar-mobile"></div>
+        <div id="calendar-detail-mobile"></div>
+        <div class="mobile-integrated-section">
+          <div class="detail-section-title">事件整理</div>
+          <div id="events-mobile"></div>
+        </div>
+      </section>
+
+      <section class="panel mobile-only mobile-panel-hidden" id="todo-panel-mobile">
+        <div class="panel-title-row">
+          <div class="panel-title">To Do List</div>
+          <div class="edit-only">
+            <button class="small" onclick="addCategoryInline()">＋</button>
+          </div>
+        </div>
+        <div class="panel-subtitle">分類、項目可收合，已完成任務會集中整理。</div>
+        <div id="list-mobile"></div>
+      </section>
+    </div>
+  </div>
+
+
+  <div id="sync-modal-overlay" class="sync-modal-overlay" onclick="if(event.target===this) closeSyncModal()">
+    <div class="sync-modal">
+      <div class="panel-title-row" style="margin-bottom:10px;">
+        <h2>雲端同步</h2>
+        <button class="small delete-btn" onclick="closeSyncModal()">關閉</button>
+      </div>
+      <div class="sync-help">這一版支援用 Supabase 做跨裝置同步。你可以在筆電、手機、平板開同一份檔案，再登入同一個帳號，就會讀到同一份資料。</div>
+      <div class="sync-grid">
+        <div class="sync-box">
+          <div class="sync-box-title">1. 連線設定</div>
+          <input id="sync-supabase-url" class="sync-input" placeholder="Supabase Project URL">
+          <input id="sync-supabase-key" class="sync-input" placeholder="Supabase Publishable key / anon key">
+          <div class="sync-actions" style="margin-top:10px;">
+            <button class="save-btn" onclick="saveCloudSettings()">儲存設定</button>
+            <button onclick="testCloudConnection()">測試連線</button>
+            <button class="delete-btn" onclick="clearCloudSettings()">清除設定</button>
+          </div>
+          <div class="sync-note">請填 Supabase 的 Project URL 與 Publishable key（或舊版 anon key）。</div>
+        </div>
+
+        <div class="sync-box">
+          <div class="sync-box-title">2. 帳號登入</div>
+          <div class="sync-inline">
+            <input id="sync-email" class="sync-input" placeholder="Email">
+            <input id="sync-password" class="sync-input" type="password" placeholder="Password">
+          </div>
+          <div class="sync-actions" style="margin-top:10px;">
+            <button class="save-btn" onclick="cloudSignIn()">登入</button>
+            <button onclick="cloudSignUp()">註冊</button>
+            <button class="delete-btn" onclick="cloudSignOut()">登出</button>
+          </div>
+          <div class="cloud-userline" id="cloud-userline"></div>
+          <div class="sync-note">如果你開啟了 Email confirmation，註冊後要先去信箱確認，再回來登入。</div>
+        </div>
+
+        <div class="sync-box">
+          <div class="sync-box-title">3. 同步資料</div>
+          <div class="sync-actions">
+            <button class="save-btn" onclick="pushToCloud(true)">上傳目前資料到雲端</button>
+            <button onclick="pullFromCloud(true)">從雲端載入到目前裝置</button>
+          </div>
+          <div class="sync-actions" style="margin-top:8px;">
+            <label style="display:flex;align-items:center;gap:8px;color:#666;font-size:14px;">
+              <input id="sync-auto-checkbox" type="checkbox" onchange="toggleCloudAutoSync(this.checked)">
+              自動同步
+            </label>
+          </div>
+          <div id="cloud-sync-status" class="sync-status" style="margin-top:10px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <div id="history-modal-overlay" class="utility-modal-overlay" onclick="if(event.target===this) closeHistoryModal()">
+    <div class="utility-modal">
+      <div class="panel-title-row" style="margin-bottom:10px;"><h2>歷史紀錄</h2><button class="small delete-btn" onclick="closeHistoryModal()">關閉</button></div>
+      <div class="panel-subtitle">這裡會整理完成超過 7 天的任務，以及已經過去的事件。</div>
+      <div id="history-modal-content"></div>
+    </div>
+  </div>
+  <div id="bulk-import-modal-overlay" class="utility-modal-overlay" onclick="if(event.target===this) closeBulkImportModal()">
+    <div class="utility-modal">
+      <div class="panel-title-row" style="margin-bottom:10px;"><h2>批次匯入任務</h2><button class="small delete-btn" onclick="closeBulkImportModal()">關閉</button></div>
+      <div class="panel-subtitle">支援 Markdown 階層：# 分類、## 項目、### 任務。匯入時會自動跳過同一分類／項目底下已存在的同名任務。</div>
+      <textarea id="bulk-import-text" class="bulk-textarea" placeholder="# 民事訴訟法&#10;## 第一章 緒論&#10;### 民事訴訟之目的&#10;### 審判權&#10;## 第二章 管轄&#10;### 普通審判籍"></textarea>
+      <div class="sync-actions" style="margin-top:10px;"><button onclick="previewBulkImport()">預覽</button><button class="save-btn" onclick="confirmBulkImport()">匯入</button><button onclick="clearBulkImportText()">清空</button></div>
+      <div id="bulk-import-preview" class="bulk-preview"><div class="empty-state">貼上內容後可以先按「預覽」。</div></div>
+    </div>
+  </div>
+
+  <div id="floating-menu" class="floating-menu"></div>
+  <div id="toast" class="toast"></div>
+
+  <script>
+    const presetColors = ["#ff8fab","#ff5d8f","#ffc2d1","#c77dff","#9d4edd","#e0aaff","#7aa2ff","#4d7cff","#bde0fe","#7ed957","#38b000","#caffbf","#ffd166","#ffbe0b","#fff3b0"];
+    const weekdays = ['日','一','二','三','四','五','六'];
+    const weekLabelsMondayFirst = ['一','二','三','四','五','六','日'];
+    const EVENT_TYPES = ['考試','報名','截止','提醒','其他'];
+
+    let editing = false;
+    let mobileTab = 'overview';
+    let dragTaskRef = null;
+    let calendarView = 'month';
+    let openMenuState = null;
+    let floatingAnchorKey = null;
+    let floatingWidth = 150;
+    let eventDraftOpen = false;
+    let editingEventId = null;
+    let eventDraft = null;
+    let sortableInstances = [];
+    let supabaseClient = null;
+    let cloudConfig = loadJSON('studyPlannerCloudConfig', { url: '', key: '', autoSync: true });
+    let cloudState = { user: null, lastSyncedAt: '', isSyncing: false };
+    let cloudAutoSaveTimer = null;
+    let cloudSuppressAutoSave = false;
+
+    const todayDate = getTodayString();
+    let selectedDate = todayDate;
+    let currentCalendarYear = new Date().getFullYear();
+    let currentCalendarMonth = new Date().getMonth();
+
+    function getTodayString() {
+      const n = new Date();
+      return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
+    }
+
+    function uid() {
+      return `id-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
+    }
+
+    function monthKeyFromDate(dateStr) {
+      const d = new Date(dateStr + 'T00:00:00');
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    }
+
+    function monthLabel(monthKey) {
+      const [y,m] = monthKey.split('-');
+      return `${y}年${Number(m)}月`;
+    }
+
+    function addDays(dateStr, offset) {
+      const d = new Date(dateStr + 'T00:00:00');
+      d.setDate(d.getDate() + offset);
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+
+    function startOfWeek(dateStr) {
+      const d = new Date(dateStr + 'T00:00:00');
+      const day = d.getDay();
+      const diff = (day === 0 ? 6 : day - 1);
+      d.setDate(d.getDate() - diff);
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+
+    function loadJSON(key, fallback) {
+      try {
+        const s = localStorage.getItem(key);
+        return s ? JSON.parse(s) : fallback;
+      } catch (e) {
+        return fallback;
+      }
+    }
+
+    function saveJSON(key, value) {
+      try {
+        localStorage.setItem(key, JSON.stringify(value));
+      } catch (e) {}
+    }
+
+    let data = loadJSON('studyPlannerDataColor', [
+      {
+        id: uid(),
+        name:'學校考試',
+        color:presetColors[0],
+        items:[
+          {
+            id: uid(),
+            name:'民訴',
+            tasks:[
+              {id:uid(),text:'第1章',status:'todo',estimatedMinutes:90,scheduledDate:todayDate,completedAt:''},
+              {id:uid(),text:'第2章',status:'doing',estimatedMinutes:45,scheduledDate:'',completedAt:''},
+              {id:uid(),text:'第30-50頁',status:'done',estimatedMinutes:30,scheduledDate:'',completedAt:addDays(todayDate,-2)}
+            ]
+          },
+          {
+            id: uid(),
+            name:'刑分',
+            tasks:[
+              {id:uid(),text:'構成要件',status:'todo',estimatedMinutes:60,scheduledDate:'',completedAt:''}
+            ]
+          }
+        ]
+      }
+    ]);
+
+    let events = loadJSON('studyPlannerEvents', [
+      { id: uid(), createdAt: Date.now(), title: '民訴期中考', mode: 'date', date: todayDate, time: '14:00', type: '考試', notes: '下午兩點' },
+      { id: uid(), createdAt: Date.now()+1, title: '研究所簡章公布留意', mode: 'month', monthKey: monthKeyFromDate(addDays(todayDate, 12)), time: '', type: '提醒', notes: '注意官網資訊' },
+      { id: uid(), createdAt: Date.now()+2, title: '查看報名資料', mode: 'date', date: todayDate, time: '', type: '提醒', notes: '' }
+    ]);
+
+    let meta = loadJSON('studyPlannerMeta', {
+      todayTaskOrder: [],
+      todayEventOrder: [],
+      collapsedCategories: {},
+      collapsedItems: {},
+      collapsedDoneSections: {}
+    });
+
+    function saveAll() {
+      saveJSON('studyPlannerDataColor', data);
+      saveJSON('studyPlannerEvents', events);
+      saveJSON('studyPlannerMeta', meta);
+      scheduleCloudAutoSave();
+    }
+
+    function saveAndRender() {
+      saveAll();
+      render();
+    }
+
+    function ensureIdsAndFlags() {
+      data.forEach(cat => {
+        if(!cat.id) cat.id = uid();
+        if(!cat.color) cat.color = presetColors[0];
+        if(typeof cat.isEditing !== 'boolean') cat.isEditing = false;
+        if(typeof cat.editValue !== 'string') cat.editValue = cat.name || '';
+        if(!Array.isArray(cat.items)) cat.items = [];
+
+        cat.items.forEach(item => {
+          if(!item.id) item.id = uid();
+          if(typeof item.isEditing !== 'boolean') item.isEditing = false;
+          if(typeof item.editValue !== 'string') item.editValue = item.name || '';
+          if(!Array.isArray(item.tasks)) item.tasks = [];
+
+          item.tasks.forEach(task => {
+            if(!task.id) task.id = uid();
+            if(typeof task.isEditing !== 'boolean') task.isEditing = false;
+            if(typeof task.editValue !== 'string') task.editValue = task.text || '';
+            if(typeof task.completedAt !== 'string') task.completedAt = '';
+          });
+        });
+      });
+
+      events.forEach((event, idx) => {
+        if(!event.id) event.id = uid();
+        if(!event.createdAt) event.createdAt = Date.now() + idx;
+      });
+
+      if(!meta.collapsedCategories) meta.collapsedCategories = {};
+      if(!meta.collapsedItems) meta.collapsedItems = {};
+      if(!meta.collapsedDoneSections) meta.collapsedDoneSections = {};
+      if(!meta.todayTaskOrder) meta.todayTaskOrder = [];
+      if(!meta.todayEventOrder) meta.todayEventOrder = [];
+    }
+
+    function hexToRgba(h,a) {
+      const c = String(h || '').replace('#','');
+      if(c.length !== 6) return `rgba(0,0,0,${a})`;
+      const n = parseInt(c,16);
+      return `rgba(${(n>>16)&255}, ${(n>>8)&255}, ${n&255}, ${a})`;
+    }
+
+    function cloudPayload() {
+      return { version: 1, data, events, meta };
+    }
+
+    function applyCloudPayload(payload) {
+      if(!payload) return false;
+      if(!Array.isArray(payload.data) || !Array.isArray(payload.events) || typeof payload.meta !== 'object') return false;
+      cloudSuppressAutoSave = true;
+      data = payload.data;
+      events = payload.events;
+      meta = payload.meta;
+      ensureIdsAndFlags();
+      saveJSON('studyPlannerDataColor', data);
+      saveJSON('studyPlannerEvents', events);
+      saveJSON('studyPlannerMeta', meta);
+      cloudSuppressAutoSave = false;
+      return true;
+    }
+
+    function persistCloudConfig() {
+      saveJSON('studyPlannerCloudConfig', cloudConfig);
+    }
+
+    function hasCloudConfig() {
+      return !!(cloudConfig.url && cloudConfig.key);
+    }
+
+    function initCloudClient() {
+      if(!window.supabase?.createClient || !hasCloudConfig()) {
+        supabaseClient = null;
+        return null;
+      }
+      try {
+        supabaseClient = window.supabase.createClient(cloudConfig.url, cloudConfig.key);
+        return supabaseClient;
+      } catch (e) {
+        console.error(e);
+        supabaseClient = null;
+        return null;
+      }
+    }
+
+    function setCloudBusy(v) {
+      cloudState.isSyncing = v;
+      updateCloudUi();
+    }
+
+    function cloudStatusText(extra='') {
+      const dotClass = cloudState.isSyncing ? 'busy' : (cloudState.user ? 'ready' : '');
+      const who = cloudState.user ? `已登入：${cloudState.user.email || cloudState.user.id}` : '尚未登入';
+      const last = cloudState.lastSyncedAt ? `最後同步：${cloudState.lastSyncedAt}` : '尚未同步';
+      return `<span class="cloud-dot ${dotClass}"></span>${who}
+${last}${extra ? `
+${extra}` : ''}`;
+    }
+
+    function updateCloudUi(extra='') {
+      const urlInput = document.getElementById('sync-supabase-url');
+      const keyInput = document.getElementById('sync-supabase-key');
+      const emailInput = document.getElementById('sync-email');
+      const autoBox = document.getElementById('sync-auto-checkbox');
+      const statusBox = document.getElementById('cloud-sync-status');
+      const userLine = document.getElementById('cloud-userline');
+      if(urlInput) urlInput.value = cloudConfig.url || '';
+      if(keyInput) keyInput.value = cloudConfig.key || '';
+      if(autoBox) autoBox.checked = cloudConfig.autoSync !== false;
+      if(statusBox) statusBox.innerHTML = cloudStatusText(extra);
+      if(userLine) userLine.textContent = cloudState.user ? `目前帳號：${cloudState.user.email || cloudState.user.id}` : '目前尚未登入';
+      if(emailInput && cloudState.user?.email && !emailInput.value) emailInput.value = cloudState.user.email;
+    }
+
+    function openSyncModal() {
+      document.getElementById('sync-modal-overlay')?.classList.add('show');
+      updateCloudUi();
+    }
+
+    function closeSyncModal() {
+      document.getElementById('sync-modal-overlay')?.classList.remove('show');
+    }
+
+    async function refreshCloudSession() {
+      if(!supabaseClient) {
+        cloudState.user = null;
+        updateCloudUi();
+        return null;
+      }
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      cloudState.user = session?.user || null;
+      updateCloudUi();
+      return cloudState.user;
+    }
+
+    function toggleCloudAutoSync(checked) {
+      cloudConfig.autoSync = !!checked;
+      persistCloudConfig();
+      updateCloudUi(checked ? '已開啟自動同步' : '已關閉自動同步');
+    }
+
+    async function saveCloudSettings() {
+      cloudConfig.url = document.getElementById('sync-supabase-url')?.value.trim() || '';
+      cloudConfig.key = document.getElementById('sync-supabase-key')?.value.trim() || '';
+      cloudConfig.autoSync = document.getElementById('sync-auto-checkbox')?.checked ?? true;
+      persistCloudConfig();
+      initCloudClient();
+      if(supabaseClient) {
+        supabaseClient.auth.onAuthStateChange((_event, session) => {
+          cloudState.user = session?.user || null;
+          updateCloudUi();
+        });
+      }
+      await refreshCloudSession();
+      showToast(supabaseClient ? '雲端設定已儲存' : '請確認 Supabase 設定');
+      updateCloudUi(supabaseClient ? '連線設定已更新' : '目前尚未建立連線');
+    }
+
+    function clearCloudSettings() {
+      cloudConfig = { url: '', key: '', autoSync: true };
+      persistCloudConfig();
+      supabaseClient = null;
+      cloudState = { user: null, lastSyncedAt: '', isSyncing: false };
+      updateCloudUi('已清除雲端設定');
+      showToast('已清除雲端設定');
+    }
+
+    async function testCloudConnection() {
+      if(!supabaseClient && !initCloudClient()) {
+        updateCloudUi('請先填好 Project URL 與 Key');
+        return;
+      }
+      try {
+        setCloudBusy(true);
+        const { data, error } = await supabaseClient.auth.getSession();
+        if(error) throw error;
+        cloudState.user = data.session?.user || null;
+        updateCloudUi('連線成功');
+        showToast('Supabase 連線成功');
+      } catch (e) {
+        console.error(e);
+        updateCloudUi(`連線失敗：${e.message || e}`);
+        showToast('Supabase 連線失敗');
+      } finally {
+        setCloudBusy(false);
+      }
+    }
+
+    async function cloudSignUp() {
+      if(!supabaseClient && !initCloudClient()) return updateCloudUi('請先儲存 Supabase 設定');
+      const email = document.getElementById('sync-email')?.value.trim();
+      const password = document.getElementById('sync-password')?.value || '';
+      if(!email || !password) return updateCloudUi('請輸入 Email 與 Password');
+      try {
+        setCloudBusy(true);
+        const { data, error } = await supabaseClient.auth.signUp({ email, password });
+        if(error) throw error;
+        cloudState.user = data.user || cloudState.user;
+        updateCloudUi('註冊成功；如果你開啟了 email confirmation，請先到信箱驗證後再登入。');
+        showToast('註冊成功');
+      } catch (e) {
+        console.error(e);
+        updateCloudUi(`註冊失敗：${e.message || e}`);
+        showToast('註冊失敗');
+      } finally {
+        setCloudBusy(false);
+      }
+    }
+
+    async function cloudSignIn() {
+      if(!supabaseClient && !initCloudClient()) return updateCloudUi('請先儲存 Supabase 設定');
+      const email = document.getElementById('sync-email')?.value.trim();
+      const password = document.getElementById('sync-password')?.value || '';
+      if(!email || !password) return updateCloudUi('請輸入 Email 與 Password');
+      try {
+        setCloudBusy(true);
+        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+        if(error) throw error;
+        cloudState.user = data.user || null;
+        updateCloudUi('登入成功');
+        showToast('登入成功');
+        await pullFromCloud(false, true);
+      } catch (e) {
+        console.error(e);
+        updateCloudUi(`登入失敗：${e.message || e}`);
+        showToast('登入失敗');
+      } finally {
+        setCloudBusy(false);
+      }
+    }
+
+    async function cloudSignOut() {
+      if(!supabaseClient) return;
+      try {
+        setCloudBusy(true);
+        const { error } = await supabaseClient.auth.signOut();
+        if(error) throw error;
+        cloudState.user = null;
+        updateCloudUi('已登出');
+        showToast('已登出');
+      } catch (e) {
+        console.error(e);
+        updateCloudUi(`登出失敗：${e.message || e}`);
+      } finally {
+        setCloudBusy(false);
+      }
+    }
+
+    async function pushToCloud(showFeedback=true) {
+      if(!supabaseClient && !initCloudClient()) {
+        updateCloudUi('請先儲存 Supabase 設定');
+        return false;
+      }
+      if(!cloudState.user) {
+        await refreshCloudSession();
+        if(!cloudState.user) {
+          updateCloudUi('請先登入');
+          return false;
+        }
+      }
+      try {
+        setCloudBusy(true);
+        const payload = cloudPayload();
+        const { error } = await supabaseClient
+          .from('planner_snapshots')
+          .upsert({ user_id: cloudState.user.id, payload, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
+          .select('updated_at')
+          .single();
+        if(error) throw error;
+        cloudState.lastSyncedAt = new Date().toLocaleString('zh-TW');
+        updateCloudUi('已上傳到雲端');
+        if(showFeedback) showToast('已上傳到雲端');
+        return true;
+      } catch (e) {
+        console.error(e);
+        updateCloudUi(`上傳失敗：${e.message || e}`);
+        if(showFeedback) showToast('上傳失敗');
+        return false;
+      } finally {
+        setCloudBusy(false);
+      }
+    }
+
+    async function pullFromCloud(showFeedback=true, uploadIfMissing=false) {
+      if(!supabaseClient && !initCloudClient()) {
+        updateCloudUi('請先儲存 Supabase 設定');
+        return false;
+      }
+      if(!cloudState.user) {
+        await refreshCloudSession();
+        if(!cloudState.user) {
+          updateCloudUi('請先登入');
+          return false;
+        }
+      }
+      try {
+        setCloudBusy(true);
+        const { data: row, error } = await supabaseClient
+          .from('planner_snapshots')
+          .select('payload, updated_at')
+          .eq('user_id', cloudState.user.id)
+          .maybeSingle();
+        if(error) throw error;
+        if(!row?.payload) {
+          if(uploadIfMissing) {
+            await pushToCloud(false);
+            updateCloudUi('雲端還沒有資料，已先上傳目前本機資料');
+            return true;
+          }
+          updateCloudUi('雲端目前還沒有資料');
+          if(showFeedback) showToast('雲端目前還沒有資料');
+          return false;
+        }
+        if(!applyCloudPayload(row.payload)) throw new Error('雲端資料格式不正確');
+        cloudState.lastSyncedAt = row.updated_at ? new Date(row.updated_at).toLocaleString('zh-TW') : new Date().toLocaleString('zh-TW');
+        render();
+        updateCloudUi('已從雲端載入');
+        if(showFeedback) showToast('已從雲端載入');
+        return true;
+      } catch (e) {
+        console.error(e);
+        updateCloudUi(`下載失敗：${e.message || e}`);
+        if(showFeedback) showToast('下載失敗');
+        return false;
+      } finally {
+        setCloudBusy(false);
+      }
+    }
+
+    function scheduleCloudAutoSave() {
+      if(cloudSuppressAutoSave) return;
+      if(!cloudConfig.autoSync) return;
+      if(!supabaseClient || !cloudState.user) return;
+      clearTimeout(cloudAutoSaveTimer);
+      cloudAutoSaveTimer = setTimeout(() => {
+        pushToCloud(false);
+      }, 1200);
+    }
+
+    function showToast(m) {
+      const t = document.getElementById('toast');
+      t.textContent = m;
+      t.classList.add('show');
+      clearTimeout(showToast._timer);
+      showToast._timer = setTimeout(() => t.classList.remove('show'), 1600);
+    }
+
+    function manualSave() {
+      saveAll();
+      closeFloatingMenu();
+      showToast('已儲存');
+    }
+
+    function exportBackup() {
+      saveAll();
+      const payload = { tasks:data, events, meta };
+      const blob = new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `study-planner-backup-${todayDate}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      closeFloatingMenu();
+      showToast('已匯出備份');
+    }
+
+    function getAppMenuHtml() {
+      return `
+        <button class="floating-option" onclick="manualSave()">💾 手動儲存</button>
+        <button class="floating-option" onclick="openSyncModal(); closeFloatingMenu();">☁️ 雲端同步</button>
+        <button class="floating-option" onclick="openBulkImportModal(); closeFloatingMenu();">＋ 批次匯入</button>
+        <button class="floating-option" onclick="openHistoryModal(); closeFloatingMenu();">📜 歷史紀錄</button>
+        <button class="floating-option" onclick="exportBackup()">⬇ 匯出備份</button>
+      `;
+    }
+
+    function symbol(s) {
+      return {todo:'•',doing:'△',done:'✓',moved:'→',cancelled:'✕'}[s] || '•';
+    }
+
+    function statusLabel(s, scheduledDate='') {
+      if(s === 'todo') return scheduledDate ? '未開始' : '待安排';
+      return {doing:'進行中',done:'已完成',moved:'延期',cancelled:'取消'}[s] || '未開始';
+    }
+
+    function formatMinutes(m) {
+      if(!m || Number(m) <= 0) return '';
+      const t = Number(m), h = Math.floor(t / 60), mi = t % 60;
+      if(h && mi) return `${h}小時${mi}分`;
+      if(h) return `${h}小時`;
+      return `${mi}分`;
+    }
+
+    function formatDateLabel(d) {
+      if(!d) return '未安排';
+      const date = new Date(d + 'T00:00:00');
+      return `${date.getMonth()+1}/${date.getDate()}`;
+    }
+
+    function formatDateWithWeekdayLabel(d) {
+      if(!d) return '未安排';
+      const date = new Date(d + 'T00:00:00');
+      return `${date.getMonth()+1}/${date.getDate()}（${weekdays[date.getDay()]}）`;
+    }
+
+    function formatEventWhen(event) {
+      return event.mode === 'month'
+        ? `${monthLabel(event.monthKey)}${event.time ? `・${event.time}` : ''}`
+        : `${formatDateWithWeekdayLabel(event.date)}${event.time ? `・${event.time}` : ''}`;
+    }
+
+    function nowTimeHHMM() {
+      const n = new Date();
+      return `${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`;
+    }
+
+    function isEventEnded(event) {
+      if(event.mode !== 'date') return false;
+      if(event.date !== todayDate) return false;
+      if(!event.time) return false;
+      return nowTimeHHMM() >= event.time;
+    }
+
+    function getHourPart(m) {
+      return Math.floor(Number(m || 0) / 60);
+    }
+
+    function getMinutePart(m) {
+      return Number(m || 0) % 60;
+    }
+
+    function dateDiffDays(dateA, dateB) {
+      const a = new Date(dateA + 'T00:00:00');
+      const b = new Date(dateB + 'T00:00:00');
+      return Math.floor((a - b) / 86400000);
+    }
+
+    function isHistoricalTask(task) {
+      return task.status === 'done' && task.completedAt && dateDiffDays(todayDate, task.completedAt) > 7;
+    }
+
+    function beginTaskDrag(c,i,t) {
+      if(!editing) return;
+      dragTaskRef = {c,i,t};
+    }
+
+    function endTaskDrag() {
+      dragTaskRef = null;
+    }
+
+    function handleTodayDrop() {
+      if(!editing || !dragTaskRef) return;
+      const task = data[dragTaskRef.c].items[dragTaskRef.i].tasks[dragTaskRef.t];
+      task.scheduledDate = todayDate;
+      if(!meta.todayTaskOrder.includes(task.id)) meta.todayTaskOrder.push(task.id);
+      saveAndRender();
+      showToast('已安排到今天');
+    }
+
+    function handleDayDrop(dateString) {
+      if(!editing || !dragTaskRef) return;
+      const task = data[dragTaskRef.c].items[dragTaskRef.i].tasks[dragTaskRef.t];
+      task.scheduledDate = dateString;
+      if(dateString === todayDate && !meta.todayTaskOrder.includes(task.id)) meta.todayTaskOrder.push(task.id);
+      saveAndRender();
+      showToast(`已安排到 ${formatDateWithWeekdayLabel(dateString)}`);
+    }
+
+    function getTasksScheduledFor(ds) {
+      const r = [];
+      data.forEach((category,c) => category.items.forEach((item,i) => item.tasks.forEach((task,t) => {
+        if(task.scheduledDate === ds && task.status !== 'cancelled' && !isHistoricalTask(task)) {
+          r.push({
+            categoryName: category.name,
+            itemName: item.name,
+            text: task.text,
+            status: task.status,
+            estimatedMinutes: Number(task.estimatedMinutes || 0),
+            color: category.color,
+            categoryIndex: c,
+            itemIndex: i,
+            taskIndex: t,
+            scheduledDate: task.scheduledDate,
+            id: task.id
+          });
+        }
+      })));
+      return r;
+    }
+
+    function getPendingTasksCount() {
+      let c = 0;
+      data.forEach(category => category.items.forEach(item => item.tasks.forEach(task => {
+        if(!task.scheduledDate && task.status !== 'done' && task.status !== 'cancelled') c++;
+      })));
+      return c;
+    }
+
+    function getEventsForDate(ds) {
+      return events.filter(event => event.mode === 'date' && event.date === ds);
+    }
+
+    function getMonthReminderEvents(monthKey) {
+      return events
+        .filter(event => event.mode === 'month' && event.monthKey === monthKey)
+        .sort((a,b) => a.createdAt - b.createdAt);
+    }
+
+    function getWeekEvents(baseDate=todayDate) {
+      const start = new Date(startOfWeek(baseDate)+'T00:00:00');
+      const end = new Date(startOfWeek(baseDate)+'T00:00:00');
+      end.setDate(end.getDate() + 6);
+
+      return events
+        .filter(event => {
+          if(event.mode === 'month') return false;
+          const d = new Date(event.date+'T00:00:00');
+          return d >= start && d <= end;
+        })
+        .sort((a,b) => (a.date+(a.time||'99:99')).localeCompare(b.date+(b.time||'99:99')));
+    }
+
+    function getMonthEvents(baseDate=todayDate) {
+      const currentMonth = monthKeyFromDate(baseDate);
+      return events
+        .filter(event => event.mode === 'month'
+          ? event.monthKey === currentMonth
+          : monthKeyFromDate(event.date) === currentMonth)
+        .sort((a,b) => {
+          const ka = a.mode === 'month'
+            ? `0-${a.createdAt}`
+            : `1-${a.date}-${a.time||'99:99'}-${a.createdAt}`;
+          const kb = b.mode === 'month'
+            ? `0-${b.createdAt}`
+            : `1-${b.date}-${b.time||'99:99'}-${b.createdAt}`;
+          return ka.localeCompare(kb);
+        });
+    }
+
+    function sortTodayTasks(tasks) {
+      const active = tasks.filter(t => t.status !== 'done');
+      const done = tasks.filter(t => t.status === 'done');
+      const order = meta.todayTaskOrder || [];
+
+      const sortByOrder = (a,b) => {
+        const ia = order.indexOf(a.id);
+        const ib = order.indexOf(b.id);
+        if(ia === -1 && ib === -1) return 0;
+        if(ia === -1) return 1;
+        if(ib === -1) return -1;
+        return ia - ib;
+      };
+
+      active.sort(sortByOrder);
+      done.sort(sortByOrder);
+      return [...active, ...done];
+    }
+
+    function sortTodayEvents(eventsForToday) {
+      const monthTop = getMonthReminderEvents(monthKeyFromDate(todayDate));
+      const timed = eventsForToday.filter(e => e.time && !isEventEnded(e)).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+      const timeless = eventsForToday.filter(e => !e.time);
+      const ended = eventsForToday.filter(e => isEventEnded(e)).sort((a,b)=>(a.time||'').localeCompare(b.time||'') || a.createdAt-b.createdAt);
+      const order = meta.todayEventOrder || [];
+
+      timeless.sort((a,b) => {
+        const ia = order.indexOf(a.id), ib = order.indexOf(b.id);
+        if(ia === -1 && ib === -1) return a.createdAt - b.createdAt;
+        if(ia === -1) return 1;
+        if(ib === -1) return -1;
+        return ia - ib;
+      });
+
+      return {monthTop, timed, timeless, ended};
+    }
+
+    function getHistoricalTasks() {
+      const rows = [];
+      data.forEach(category => category.items.forEach(item => item.tasks.forEach(task => {
+        if(isHistoricalTask(task)) {
+          rows.push({
+            id: task.id,
+            text: task.text,
+            categoryName: category.name,
+            itemName: item.name,
+            completedAt: task.completedAt,
+            estimatedMinutes: task.estimatedMinutes
+          });
+        }
+      })));
+      rows.sort((a,b) => b.completedAt.localeCompare(a.completedAt));
+      return rows;
+    }
+
+    function renderHistoryPanel(targetId) {
+      const target = document.getElementById(targetId);
+      if(!target) return;
+
+      const rows = getHistoricalTasks();
+      if(!rows.length) {
+        target.innerHTML = `<div class="empty-state">目前還沒有超過 7 天的歷史任務</div>`;
+        return;
+      }
+
+      target.innerHTML = rows.map(row => `
+        <div class="history-card">
+          <div>
+            <div class="history-task-name">✓ ${escapeHtml(row.text || '未命名任務')}</div>
+            <div class="history-meta">${escapeHtml(row.categoryName)} / ${escapeHtml(row.itemName)} ・ 完成於 ${formatDateWithWeekdayLabel(row.completedAt)}${formatMinutes(row.estimatedMinutes) ? ` ・ ${formatMinutes(row.estimatedMinutes)}` : ''}</div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+
+    function getPastEvents() {
+      const currentMonth = monthKeyFromDate(todayDate);
+      return events.filter(event => {
+        if(event.mode === 'date') return event.date && event.date < todayDate;
+        if(event.mode === 'month') return event.monthKey && event.monthKey < currentMonth;
+        return false;
+      }).sort((a,b) => {
+        const ka = a.mode === 'date' ? a.date : (a.monthKey + '-00');
+        const kb = b.mode === 'date' ? b.date : (b.monthKey + '-00');
+        return kb.localeCompare(ka) || (b.createdAt || 0) - (a.createdAt || 0);
+      });
+    }
+    function historyMonthKeyForRow(row) {
+      if(row.kind === 'task') return monthKeyFromDate(row.completedAt);
+      if(row.mode === 'date') return monthKeyFromDate(row.date);
+      return row.monthKey || monthKeyFromDate(todayDate);
+    }
+    function buildHistoryModalHtml() {
+      const taskRows = getHistoricalTasks().map(row => Object.assign({kind:'task'}, row));
+      const eventRows = getPastEvents().map(row => Object.assign({kind:'event'}, row));
+      const rows = taskRows.concat(eventRows).sort((a,b) => historyMonthKeyForRow(b).localeCompare(historyMonthKeyForRow(a)));
+      if(!rows.length) return '<div class="empty-state">目前還沒有歷史紀錄</div>';
+      let html = '', current = '';
+      rows.forEach(row => {
+        const mk = historyMonthKeyForRow(row);
+        if(mk !== current) { current = mk; html += '<div class="history-month">' + monthLabel(mk) + '</div>'; }
+        if(row.kind === 'task') {
+          html += '<div class="history-card"><div><div class="history-task-name">✓ ' + escapeHtml(row.text || '未命名任務') + '</div><div class="history-meta">' + escapeHtml(row.categoryName) + ' / ' + escapeHtml(row.itemName) + ' ・ 完成於 ' + formatDateWithWeekdayLabel(row.completedAt) + (formatMinutes(row.estimatedMinutes) ? ' ・ ' + formatMinutes(row.estimatedMinutes) : '') + '</div></div></div>';
+        } else {
+          html += '<div class="event-card ended"><div><div class="event-main-title"><span class="event-type-chip">' + escapeHtml(row.type || '其他') + '</span> ' + escapeHtml(row.title || '未命名事件') + '</div><div class="event-meta">' + formatEventWhen(row) + (row.notes ? ' ・ ' + escapeHtml(row.notes) : '') + '</div></div></div>';
+        }
+      });
+      return html;
+    }
+    function openHistoryModal(){ const c=document.getElementById('history-modal-content'); if(c) c.innerHTML=buildHistoryModalHtml(); document.getElementById('history-modal-overlay')?.classList.add('show'); }
+    function closeHistoryModal(){ document.getElementById('history-modal-overlay')?.classList.remove('show'); }
+    function openBulkImportModal(){ document.getElementById('bulk-import-modal-overlay')?.classList.add('show'); previewBulkImport(); }
+    function closeBulkImportModal(){ document.getElementById('bulk-import-modal-overlay')?.classList.remove('show'); }
+    function clearBulkImportText(){ const t=document.getElementById('bulk-import-text'); if(t) t.value=''; previewBulkImport(); }
+    function normalizeImportName(s){ return String(s || '').trim().replace(/\s+/g, ' '); }
+    function parseBulkImportText(text){
+      const result=[]; let currentCategory=null, currentItem=null;
+      String(text||'').split(/\r?\n/).forEach(raw=>{
+        const line=raw.trim(); if(!line) return;
+        const match=line.match(/^(#{1,3})\s+(.+)$/);
+        if(match){
+          const level=match[1].length; const name=normalizeImportName(match[2]); if(!name) return;
+          if(level===1){ currentCategory={name,items:[]}; result.push(currentCategory); currentItem=null; }
+          if(level===2){ if(!currentCategory){ currentCategory={name:'未分類',items:[]}; result.push(currentCategory); } currentItem={name,tasks:[]}; currentCategory.items.push(currentItem); }
+          if(level===3){ if(!currentCategory){ currentCategory={name:'未分類',items:[]}; result.push(currentCategory); } if(!currentItem){ currentItem={name:'未命名項目',tasks:[]}; currentCategory.items.push(currentItem); } currentItem.tasks.push({text:name}); }
+          return;
+        }
+        const bullet=line.match(/^[-*•]\s+(.+)$/);
+        if(bullet){ const name=normalizeImportName(bullet[1]); if(!currentCategory){ currentCategory={name:'未分類',items:[]}; result.push(currentCategory); } if(!currentItem){ currentItem={name:'未命名項目',tasks:[]}; currentCategory.items.push(currentItem); } currentItem.tasks.push({text:name}); }
+      });
+      return result.filter(cat=>cat.name);
+    }
+    function analyzeBulkImport(parsed){
+      let newCategories=0,newItems=0,newTasks=0,duplicateTasks=0;
+      const details=parsed.map(cat=>{ const existingCat=data.find(c=>normalizeImportName(c.name)===cat.name); if(!existingCat) newCategories++; const catItems=cat.items.map(item=>{ const existingItem=existingCat?.items?.find(it=>normalizeImportName(it.name)===item.name); if(!existingItem) newItems++; const tasks=item.tasks.map(task=>{ const exists=!!existingItem?.tasks?.some(t=>normalizeImportName(t.text)===task.text); if(exists) duplicateTasks++; else newTasks++; return Object.assign({},task,{duplicate:exists}); }); return Object.assign({},item,{exists:!!existingItem,tasks}); }); return Object.assign({},cat,{exists:!!existingCat,items:catItems}); });
+      return {details,newCategories,newItems,newTasks,duplicateTasks};
+    }
+    function previewBulkImport(){
+      const text=document.getElementById('bulk-import-text')?.value||''; const preview=document.getElementById('bulk-import-preview'); if(!preview) return; const parsed=parseBulkImportText(text);
+      if(!text.trim()){ preview.innerHTML='<div class="empty-state">貼上內容後可以先按「預覽」。</div>'; return; }
+      if(!parsed.length){ preview.innerHTML='<div class="empty-state">讀不到可匯入內容。請使用 # 分類、## 項目、### 任務。</div>'; return; }
+      const summary=analyzeBulkImport(parsed); let html='<div class="muted">預計新增：分類 '+summary.newCategories+'、項目 '+summary.newItems+'、任務 '+summary.newTasks+'；跳過重複任務 '+summary.duplicateTasks+'</div>';
+      summary.details.forEach(cat=>{ html+='<div style="margin-top:12px;"><strong># '+escapeHtml(cat.name)+'</strong>'+(cat.exists?' <span class="muted">（已存在）</span>':'')+'</div>'; cat.items.forEach(item=>{ html+='<div style="margin-left:14px;margin-top:8px;"><strong>## '+escapeHtml(item.name)+'</strong>'+(item.exists?' <span class="muted">（已存在）</span>':'')+'</div><ul>'; item.tasks.forEach(task=>{ html+='<li class="'+(task.duplicate?'bulk-skip':'')+'">### '+escapeHtml(task.text)+(task.duplicate?'（重複，將跳過）':'')+'</li>'; }); html+='</ul>'; }); });
+      preview.innerHTML=html;
+    }
+    function confirmBulkImport(){
+      const parsed=parseBulkImportText(document.getElementById('bulk-import-text')?.value||''); if(!parsed.length){ showToast('沒有可匯入內容'); return; }
+      let addedTasks=0, skippedTasks=0;
+      parsed.forEach(cat=>{ let targetCat=data.find(c=>normalizeImportName(c.name)===cat.name); if(!targetCat){ targetCat={id:uid(),name:cat.name,color:presetColors[data.length%presetColors.length],items:[],isEditing:false,editValue:cat.name}; data.push(targetCat); } cat.items.forEach(item=>{ let targetItem=targetCat.items.find(it=>normalizeImportName(it.name)===item.name); if(!targetItem){ targetItem={id:uid(),name:item.name,tasks:[],isEditing:false,editValue:item.name}; targetCat.items.push(targetItem); } item.tasks.forEach(task=>{ const exists=targetItem.tasks.some(t=>normalizeImportName(t.text)===task.text); if(exists){ skippedTasks++; return; } targetItem.tasks.push({id:uid(),text:task.text,status:'todo',estimatedMinutes:0,scheduledDate:'',completedAt:'',isEditing:false,editValue:task.text}); addedTasks++; }); }); });
+      closeBulkImportModal(); saveAndRender(); showToast('已新增 '+addedTasks+' 個任務，跳過 '+skippedTasks+' 個重複任務');
+    }
+
+    function renderTodaySummary(targetId) {
+      const target = document.getElementById(targetId);
+      if(!target) return;
+
+      const todayTasks = sortTodayTasks(getTasksScheduledFor(todayDate));
+      const total = todayTasks.filter(t => t.status !== 'done').reduce((s,t)=>s+(t.estimatedMinutes||0),0);
+      const sortedEvents = sortTodayEvents(getEventsForDate(todayDate));
+
+      let html = `
+        <div class="today-summary-grid">
+          <div class="today-summary-box">
+            <div class="muted">今日任務數</div>
+            <div class="summary-number">${todayTasks.filter(t=>t.status!=='done').length}</div>
+          </div>
+          <div class="today-summary-box">
+            <div class="muted">待安排任務數</div>
+            <div class="summary-number">${getPendingTasksCount()}</div>
+          </div>
+        </div>
+
+        <div class="today-summary-box" style="margin-bottom:12px;">
+          <div class="muted">今日任務總預估時間</div>
+          <div class="summary-number">${formatMinutes(total)||'0分'}</div>
+        </div>
+      `;
+
+      html += `
+        <div class="overview-section">
+          <div class="overview-section-title">📌 今日任務</div>
+          <div class="today-drop-zone"
+            ondragover="if(editing){event.preventDefault(); this.classList.add('drag-hover')}"
+            ondragleave="this.classList.remove('drag-hover')"
+            ondrop="if(editing){event.preventDefault(); this.classList.remove('drag-hover'); handleTodayDrop()}"
+          >
+            <div class="today-task-list" id="today-task-list-${targetId}">
+      `;
+
+      if(!todayTasks.length) {
+        html += `<div class="empty-state">把任務拖進來吧 ✨</div>`;
+      }
+
+      todayTasks.forEach(task => {
+        html += `
+          <div class="today-task-card ${task.status==='done'?'ended':''}"
+               data-task-id="${task.id}"
+               style="border-left:4px solid ${task.color}">
+            <div class="today-task-main">
+              <div class="today-task-name">
+                <span class="task-symbol">${symbol(task.status)}</span>
+                ${escapeHtml(task.text)}
+              </div>
+              <div class="today-task-meta">${escapeHtml(task.categoryName)} / ${escapeHtml(task.itemName)}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              ${editing ? `
+                <button class="task-status-btn"
+                        data-menu-key="today-status-${targetId}-${task.categoryIndex}-${task.itemIndex}-${task.taskIndex}"
+                        onclick="toggleFloatingMenu('status', event, ${task.categoryIndex}, ${task.itemIndex}, ${task.taskIndex})">
+                  <span>${symbol(task.status)}</span>
+                  <span>${statusLabel(task.status, task.scheduledDate)}</span>
+                </button>
+              ` : ''}
+              <div class="task-time">${formatMinutes(task.estimatedMinutes)||''}</div>
+            </div>
+          </div>
+        `;
+      });
+
+      html += `</div></div></div>`;
+
+      html += `
+        <div class="overview-section">
+          <div class="overview-section-title">📅 今日事件</div>
+          <div class="today-event-list" id="today-event-list-${targetId}">
+      `;
+
+      const allEvents = [
+        ...sortedEvents.monthTop,
+        ...sortedEvents.timed,
+        ...sortedEvents.timeless,
+        ...sortedEvents.ended
+      ];
+
+      if(!allEvents.length) {
+        html += `<div class="empty-state">今天沒有事件</div>`;
+      }
+
+      allEvents.forEach(event => {
+        html += eventCardHtml(event);
+      });
+
+      html += `</div></div>`;
+      target.innerHTML = html;
+    }
+
+    function buildWeekView(baseDate) {
+      const start = startOfWeek(baseDate);
+      const days = [];
+      for(let i=0;i<7;i++) days.push(addDays(start,i));
+      return days;
+    }
+
+    function formatCalendarDate(y,m,d) {
+      const date = new Date(y, m - 1, d);
+      return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+    }
+
+    function getCalendarHtml() {
+      if(calendarView === 'week') {
+        const days = buildWeekView(selectedDate);
+        const header = weekLabelsMondayFirst.map(w => `<div>${w}</div>`).join('');
+        const labelStart = formatDateLabel(days[0]);
+        const labelEnd = formatDateLabel(days[6]);
+
+        const body = days.map(ds => {
+          const hasTask = getTasksScheduledFor(ds).length > 0;
+          const hasEvent = getEventsForDate(ds).length > 0 || getMonthReminderEvents(monthKeyFromDate(ds)).length > 0;
+          const dayNum = new Date(ds+'T00:00:00').getDate();
+
+          return `
+            <div class="calendar-day ${selectedDate===ds?'selected':''} ${ds===todayDate?'today':''}"
+                 data-date="${ds}"
+                 onclick="selectCalendarDate('${ds}')"
+                 ondragover="if(editing){event.preventDefault();this.classList.add('drag-hover')}"
+                 ondragleave="this.classList.remove('drag-hover')"
+                 ondrop="if(editing){event.preventDefault();this.classList.remove('drag-hover');handleDayDrop('${ds}')}"
+                 role="button">
+              <div class="calendar-day-top"><span>${dayNum}</span></div>
+              <div class="calendar-markers">
+                ${hasTask?'<span class="calendar-marker calendar-task-dot"></span>':''}
+                ${hasEvent?'<span class="calendar-marker calendar-event-dot"></span>':''}
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        return `
+          <div class="calendar-shell">
+            <div class="calendar-header">
+              <button onclick="shiftWeek(-1)">←</button>
+              <div class="calendar-month-label">${labelStart} ～ ${labelEnd}</div>
+              <button onclick="shiftWeek(1)">→</button>
+            </div>
+            <div class="calendar-weekdays">${header}</div>
+            <div class="calendar-grid">${body}</div>
+          </div>
+        `;
+      }
+
+      const firstDay = new Date(currentCalendarYear, currentCalendarMonth, 1);
+      const firstWeekday = firstDay.getDay();
+      const daysInMonth = new Date(currentCalendarYear, currentCalendarMonth + 1, 0).getDate();
+      const prevMonthDays = new Date(currentCalendarYear, currentCalendarMonth, 0).getDate();
+      const monthLabelText = `${currentCalendarYear}年 ${currentCalendarMonth+1}月`;
+
+      let daysHtml = '';
+
+      for(let i=0;i<firstWeekday;i++) {
+        const dn = prevMonthDays - firstWeekday + i + 1;
+        const dateObj = new Date(currentCalendarYear, currentCalendarMonth - 1, dn);
+        const ds = `${dateObj.getFullYear()}-${String(dateObj.getMonth()+1).padStart(2,'0')}-${String(dateObj.getDate()).padStart(2,'0')}`;
+        daysHtml += `
+          <div class="calendar-day muted-day" data-date="${ds}" onclick="selectCalendarDate('${ds}')">
+            <div class="calendar-day-top"><span>${dn}</span></div>
+          </div>
+        `;
+      }
+
+      for(let day=1;day<=daysInMonth;day++) {
+        const ds = formatCalendarDate(currentCalendarYear, currentCalendarMonth+1, day);
+        const hasTask = getTasksScheduledFor(ds).length > 0;
+        const hasEvent = getEventsForDate(ds).length > 0 || getMonthReminderEvents(monthKeyFromDate(ds)).length > 0;
+
+        daysHtml += `
+          <div class="calendar-day ${selectedDate===ds?'selected':''} ${ds===todayDate?'today':''}"
+               onclick="selectCalendarDate('${ds}')"
+               ondragover="if(editing){event.preventDefault();this.classList.add('drag-hover')}"
+               ondragleave="this.classList.remove('drag-hover')"
+               ondrop="if(editing){event.preventDefault();this.classList.remove('drag-hover');handleDayDrop('${ds}')}"
+               role="button">
+            <div class="calendar-day-top"><span>${day}</span></div>
+            <div class="calendar-markers">
+              ${hasTask?'<span class="calendar-marker calendar-task-dot"></span>':''}
+              ${hasEvent?'<span class="calendar-marker calendar-event-dot"></span>':''}
+            </div>
+          </div>
+        `;
+      }
+
+      const totalCells = firstWeekday + daysInMonth;
+      const rem = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
+
+      for(let i=1;i<=rem;i++) {
+        const dateObj = new Date(currentCalendarYear, currentCalendarMonth + 1, i);
+        const ds = `${dateObj.getFullYear()}-${String(dateObj.getMonth()+1).padStart(2,'0')}-${String(dateObj.getDate()).padStart(2,'0')}`;
+        daysHtml += `
+          <div class="calendar-day muted-day" data-date="${ds}" onclick="selectCalendarDate('${ds}')">
+            <div class="calendar-day-top"><span>${i}</span></div>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="calendar-shell">
+          <div class="calendar-header">
+            <button onclick="changeCalendarMonth(-1)">←</button>
+            <div class="calendar-month-label">${monthLabelText}</div>
+            <button onclick="changeCalendarMonth(1)">→</button>
+          </div>
+          <div class="calendar-weekdays">
+            <div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div>
+          </div>
+          <div class="calendar-grid">${daysHtml}</div>
+        </div>
+      `;
+    }
+
+    function eventCardHtml(event) {
+      const ended = isEventEnded(event);
+      return `
+        <div class="event-card ${ended?'ended':''}" data-event-id="${event.id}" style="border-left:4px solid ${event.mode==='month'?'#444':'#999'}">
+          <div>
+            <div class="event-main-title">
+              ${event.mode==='month'?'<span class="event-type-chip">本月</span> ':''}
+              <span class="event-type-chip">${event.type}</span> ${escapeHtml(event.title)}
+            </div>
+            <div class="event-meta">
+              ${formatEventWhen(event)}
+              ${event.notes?` ・ ${escapeHtml(event.notes)}`:''}
+              ${ended?' ・ 已發生':''}
+            </div>
+          </div>
+          ${editing ? `
+            <div style="display:flex;gap:8px;">
+              <button class="small icon-btn" onclick="openEditEvent('${event.id}')">✎</button>
+              <button class="small delete-btn" onclick="deleteEvent('${event.id}')">✕</button>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }
+
+    function getCalendarDetailHtml() {
+      const dayTasks = getTasksScheduledFor(selectedDate);
+      const dayEvents = getEventsForDate(selectedDate);
+      const extraEvents = calendarView==='week' ? getWeekEvents(selectedDate) : getMonthEvents(selectedDate);
+
+      let html = `<div class="calendar-detail"><div class="muted">所選日期：${formatDateWithWeekdayLabel(selectedDate)}</div>`;
+
+      if(eventDraftOpen) {
+        html += `
+          <div class="event-form">
+            <input value="${eventDraft?.title||''}" oninput="updateEventDraftField('title', this.value)" placeholder="事件名稱">
+            <div class="event-form-row">
+              <button class="event-menu-btn" data-menu-key="event-mode-btn" onclick="toggleFloatingMenu('eventmode', event)">${eventDraft.mode==='date'?'指定日期':'月份提醒'}</button>
+              <button class="event-menu-btn" data-menu-key="event-type-btn" onclick="toggleFloatingMenu('eventtype', event)">${eventDraft.type}</button>
+            </div>
+            <div class="event-form-row">
+              ${eventDraft.mode==='date'
+                ? `<button class="event-menu-btn" data-menu-key="event-date-btn" onclick="toggleFloatingMenu('eventdate', event)">${formatDateWithWeekdayLabel(eventDraft.date)}</button>`
+                : `<input type="month" value="${eventDraft.monthKey || monthKeyFromDate(selectedDate)}" oninput="setEventDraftMonthInput(this.value)" aria-label="月份提醒年月">`
+              }
+              <div class="time-pair">
+                <input class="time-box" inputmode="numeric" maxlength="2" value="${eventDraft.hour||''}" oninput="updateEventHour(this.value)" placeholder="時">
+                <span class="time-colon">:</span>
+                <input class="time-box" inputmode="numeric" maxlength="2" value="${eventDraft.minute||''}" oninput="updateEventMinute(this.value)" placeholder="分">
+              </div>
+            </div>
+            <textarea oninput="updateEventDraftField('notes', this.value)" placeholder="備註（可不填）">${eventDraft.notes||''}</textarea>
+            <div class="event-form-row">
+              <button class="save-btn" onclick="saveEventDraft()">儲存事件</button>
+              <button class="delete-btn" onclick="cancelEventDraft()">取消</button>
+            </div>
+          </div>
+        `;
+      }
+
+      html += `<div class="detail-section-title">當日任務</div>`;
+      html += dayTasks.length
+        ? dayTasks.map(task => `
+            <div class="today-task-card ${task.status==='done'?'ended':''}" style="margin-top:8px;border-left:4px solid ${task.color}">
+              <div class="today-task-main">
+                <div class="today-task-name">${escapeHtml(task.text)}</div>
+                <div class="today-task-meta">${escapeHtml(task.categoryName)} / ${escapeHtml(task.itemName)}</div>
+              </div>
+              <div class="task-time">${statusLabel(task.status, task.scheduledDate)}</div>
+            </div>
+          `).join('')
+        : `<div class="empty-state">這一天還沒有任務</div>`;
+
+      html += `<div class="detail-section-title">當日事件</div>`;
+      html += dayEvents.length
+        ? dayEvents.map(eventCardHtml).join('')
+        : `<div class="empty-state">這一天還沒有事件</div>`;
+
+      html += `<div class="detail-section-title">${calendarView==='week'?'本週事件':'本月事件'}</div>`;
+      html += extraEvents.length
+        ? extraEvents.map(eventCardHtml).join('')
+        : `<div class="empty-state">目前沒有${calendarView==='week'?'本週':'本月'}事件</div>`;
+
+      html += `</div>`;
+      return html;
+    }
+
+    function changeCalendarMonth(offset) {
+      currentCalendarMonth += offset;
+      if(currentCalendarMonth < 0) {
+        currentCalendarMonth = 11;
+        currentCalendarYear -= 1;
+      }
+      if(currentCalendarMonth > 11) {
+        currentCalendarMonth = 0;
+        currentCalendarYear += 1;
+      }
+      render();
+    }
+
+    function shiftWeek(offset) {
+      selectedDate = addDays(startOfWeek(selectedDate), offset * 7);
+      render();
+    }
+
+    function selectCalendarDate(ds) {
+      selectedDate = ds;
+      const sd = new Date(ds+'T00:00:00');
+      currentCalendarYear = sd.getFullYear();
+      currentCalendarMonth = sd.getMonth();
+      if(eventDraft && eventDraft.mode === 'date') eventDraft.date = ds;
+      render();
+    }
+
+    function updateCalendarViewButtons() {
+      document.getElementById('calendar-view-week')?.classList.toggle('active', calendarView === 'week');
+      document.getElementById('calendar-view-month')?.classList.toggle('active', calendarView === 'month');
+      document.getElementById('calendar-view-week-mobile')?.classList.toggle('active', calendarView === 'week');
+      document.getElementById('calendar-view-month-mobile')?.classList.toggle('active', calendarView === 'month');
+    }
+
+    function setCalendarView(view) {
+      if(calendarView === view) return;
+      calendarView = view;
+      render();
+    }
+
+    function setMobileTab(tab) {
+      if(!['overview','calendar','todo'].includes(tab)) tab = 'overview';
+      mobileTab = tab;
+      ['overview','calendar','todo'].forEach(name => {
+        document.getElementById(`tab-${name}`)?.classList.toggle('active', tab===name);
+      });
+      document.getElementById('overview-panel-mobile')?.classList.toggle('mobile-panel-hidden',tab!=='overview');
+      document.getElementById('calendar-panel-mobile')?.classList.toggle('mobile-panel-hidden',tab!=='calendar');
+      document.getElementById('todo-panel-mobile')?.classList.toggle('mobile-panel-hidden',tab!=='todo');
+    }
+
+    function toggleEdit() {
+      editing = !editing;
+      document.getElementById('app').classList.toggle('editing', editing);
+      document.getElementById('editSwitch').checked = editing;
+      const m = document.getElementById('editSwitchMobile');
+      if(m) m.checked = editing;
+
+      if(!editing) {
+        closeFloatingMenu();
+        dragTaskRef = null;
+        eventDraftOpen = false;
+        editingEventId = null;
+        eventDraft = null;
+        clearAllEditStates();
+      }
+      render();
+    }
+
+    function toggleEditFromMobile() {
+      toggleEdit();
+    }
+
+    function clearAllEditStates() {
+      data.forEach(cat => {
+        cat.isEditing = false;
+        cat.items.forEach(item => {
+          item.isEditing = false;
+          item.tasks.forEach(task => task.isEditing = false);
+        });
+      });
+    }
+
+    function toggleCategoryCollapse(catId) {
+      meta.collapsedCategories[catId] = !meta.collapsedCategories[catId];
+      saveAndRender();
+    }
+
+    function toggleItemCollapse(itemId) {
+      meta.collapsedItems[itemId] = !meta.collapsedItems[itemId];
+      saveAndRender();
+    }
+
+    function toggleDoneSection(itemId) {
+      meta.collapsedDoneSections[itemId] = !meta.collapsedDoneSections[itemId];
+      saveAndRender();
+    }
+
+    function addCategoryInline() {
+      clearAllEditStates();
+      data.push({
+        id: uid(),
+        name:'',
+        color:presetColors[data.length % presetColors.length],
+        items:[],
+        isEditing:true,
+        editValue:''
+      });
+      saveAndRender();
+    }
+
+    function addItemInline(c) {
+      clearAllEditStates();
+      data[c].items.push({
+        id: uid(),
+        name:'',
+        tasks:[],
+        isEditing:true,
+        editValue:''
+      });
+      meta.collapsedCategories[data[c].id] = false;
+      saveAndRender();
+    }
+
+    function addTaskInline(c,i) {
+      clearAllEditStates();
+      data[c].items[i].tasks.push({
+        id:uid(),
+        text:'',
+        status:'todo',
+        estimatedMinutes:0,
+        scheduledDate:'',
+        completedAt:'',
+        isEditing:true,
+        editValue:''
+      });
+      meta.collapsedCategories[data[c].id] = false;
+      meta.collapsedItems[data[c].items[i].id] = false;
+      saveAndRender();
+    }
+
+    function deleteCategory(c) {
+      delete meta.collapsedCategories[data[c].id];
+      data[c].items.forEach(item => {
+        delete meta.collapsedItems[item.id];
+        delete meta.collapsedDoneSections[item.id];
+      });
+      data.splice(c,1);
+      saveAndRender();
+    }
+
+    function deleteItem(c,i) {
+      delete meta.collapsedItems[data[c].items[i].id];
+      delete meta.collapsedDoneSections[data[c].items[i].id];
+      data[c].items.splice(i,1);
+      saveAndRender();
+    }
+
+    function deleteTask(c,i,t) {
+      data[c].items[i].tasks.splice(t,1);
+      saveAndRender();
+    }
+
+    function startEditCategory(c) {
+      clearAllEditStates();
+      data[c].isEditing = true;
+      data[c].editValue = data[c].name || '';
+      render();
+    }
+
+    function saveCategoryName(c, value) {
+      const v = value.trim();
+      if(!v) {
+        if(data[c].name === '') {
+          data.splice(c,1);
+        } else {
+          data[c].isEditing = false;
+        }
+        saveAndRender();
+        return;
+      }
+      data[c].name = v;
+      data[c].isEditing = false;
+      data[c].editValue = v;
+      saveAndRender();
+    }
+
+    function cancelEditCategory(c) {
+      if(!data[c]) return;
+      if(!data[c].name) {
+        data.splice(c,1);
+      } else {
+        data[c].isEditing = false;
+        data[c].editValue = data[c].name;
+      }
+      saveAndRender();
+    }
+
+    function startEditItem(c,i) {
+      clearAllEditStates();
+      data[c].items[i].isEditing = true;
+      data[c].items[i].editValue = data[c].items[i].name || '';
+      render();
+    }
+
+    function saveItemName(c,i,value) {
+      const v = value.trim();
+      if(!v) {
+        if(data[c].items[i].name === '') {
+          data[c].items.splice(i,1);
+        } else {
+          data[c].items[i].isEditing = false;
+        }
+        saveAndRender();
+        return;
+      }
+      data[c].items[i].name = v;
+      data[c].items[i].isEditing = false;
+      data[c].items[i].editValue = v;
+      saveAndRender();
+    }
+
+    function cancelEditItem(c,i) {
+      if(!data[c]?.items[i]) return;
+      if(!data[c].items[i].name) {
+        data[c].items.splice(i,1);
+      } else {
+        data[c].items[i].isEditing = false;
+        data[c].items[i].editValue = data[c].items[i].name;
+      }
+      saveAndRender();
+    }
+
+    function startEditTask(c,i,t) {
+      clearAllEditStates();
+      data[c].items[i].tasks[t].isEditing = true;
+      data[c].items[i].tasks[t].editValue = data[c].items[i].tasks[t].text || '';
+      render();
+    }
+
+    function saveTaskName(c,i,t,value) {
+      const v = value.trim();
+      if(!v) {
+        if(data[c].items[i].tasks[t].text === '') {
+          data[c].items[i].tasks.splice(t,1);
+        } else {
+          data[c].items[i].tasks[t].isEditing = false;
+        }
+        saveAndRender();
+        return;
+      }
+      data[c].items[i].tasks[t].text = v;
+      data[c].items[i].tasks[t].isEditing = false;
+      data[c].items[i].tasks[t].editValue = v;
+      saveAndRender();
+    }
+
+    function cancelEditTask(c,i,t) {
+      if(!data[c]?.items[i]?.tasks[t]) return;
+      if(!data[c].items[i].tasks[t].text) {
+        data[c].items[i].tasks.splice(t,1);
+      } else {
+        data[c].items[i].tasks[t].isEditing = false;
+        data[c].items[i].tasks[t].editValue = data[c].items[i].tasks[t].text;
+      }
+      saveAndRender();
+    }
+
+    function scheduleTaskToDate(c,i,t,d) {
+      if(!editing) return;
+      const task = data[c].items[i].tasks[t];
+      task.scheduledDate = d;
+      if(d === todayDate && !meta.todayTaskOrder.includes(task.id)) meta.todayTaskOrder.push(task.id);
+      closeFloatingMenu();
+      saveAndRender();
+    }
+
+    function changeStatus(c,i,t,v) {
+      if(!editing) return;
+      const task = data[c].items[i].tasks[t];
+      task.status = v;
+      if(v === 'done') {
+        if(!task.completedAt) task.completedAt = todayDate;
+      } else {
+        task.completedAt = '';
+      }
+      closeFloatingMenu();
+      saveAndRender();
+    }
+
+    function updateTaskTimePart(c,i,t,p,v) {
+      const task = data[c].items[i].tasks[t];
+      let h = getHourPart(task.estimatedMinutes);
+      let m = getMinutePart(task.estimatedMinutes);
+      if(p === 'hour') h = Number(v);
+      if(p === 'minute') m = Number(v);
+      task.estimatedMinutes = (h * 60) + m;
+      closeFloatingMenu();
+      saveAndRender();
+    }
+
+    function setCategoryColor(c,color) {
+      data[c].color = color;
+      closeFloatingMenu();
+      saveAndRender();
+    }
+
+    function openEventDraft() {
+      if(!editing) return;
+      editingEventId = null;
+      eventDraftOpen = true;
+      eventDraft = {
+        title:'',
+        mode:'date',
+        date:selectedDate,
+        monthKey:monthKeyFromDate(selectedDate),
+        hour:'',
+        minute:'',
+        type:'考試',
+        notes:''
+      };
+      render();
+    }
+
+    function openEditEvent(id) {
+      if(!editing) return;
+      const event = events.find(e => e.id === id);
+      if(!event) return;
+      editingEventId = id;
+      eventDraftOpen = true;
+      const parts = (event.time || '').split(':');
+      eventDraft = {
+        title:event.title || '',
+        mode:event.mode || 'date',
+        date:event.date || selectedDate,
+        monthKey:event.monthKey || monthKeyFromDate(selectedDate),
+        hour:parts[0] || '',
+        minute:parts[1] || '',
+        type:event.type || '其他',
+        notes:event.notes || ''
+      };
+      render();
+    }
+
+    function cancelEventDraft() {
+      editingEventId = null;
+      eventDraftOpen = false;
+      eventDraft = null;
+      closeFloatingMenu();
+      render();
+    }
+
+    function updateEventDraftField(field, value) {
+      if(!eventDraft) return;
+      eventDraft[field] = value;
+    }
+
+    function normalizeTimeDraft() {
+      if(!eventDraft) return '';
+      let h = (eventDraft.hour||'').replace(/[^0-9]/g,'').slice(0,2);
+      let m = (eventDraft.minute||'').replace(/[^0-9]/g,'').slice(0,2);
+      if(h !== '') h = String(Math.min(23, Number(h))).padStart(2,'0');
+      if(m !== '') m = String(Math.min(59, Number(m))).padStart(2,'0');
+      eventDraft.hour = h;
+      eventDraft.minute = m;
+      return (h && m) ? `${h}:${m}` : '';
+    }
+
+    function updateEventHour(value) {
+      if(!eventDraft) return;
+      eventDraft.hour = value.replace(/[^0-9]/g,'').slice(0,2);
+    }
+
+    function updateEventMinute(value) {
+      if(!eventDraft) return;
+      eventDraft.minute = value.replace(/[^0-9]/g,'').slice(0,2);
+    }
+
+    function setEventDraftMode(mode) {
+      if(!eventDraft) return;
+      eventDraft.mode = mode;
+      closeFloatingMenu();
+      render();
+    }
+
+    function setEventDraftType(type) {
+      if(!eventDraft) return;
+      eventDraft.type = type;
+      closeFloatingMenu();
+      render();
+    }
+
+    function setEventDraftDate(date) {
+      if(!eventDraft) return;
+      eventDraft.date = date;
+      closeFloatingMenu();
+      render();
+    }
+
+    function setEventDraftMonthInput(monthKey) {
+      if(!eventDraft) return;
+      if(/^\d{4}-\d{2}$/.test(monthKey)) eventDraft.monthKey = monthKey;
+    }
+
+    function setEventDraftMonth(monthKey) {
+      if(!eventDraft) return;
+      eventDraft.monthKey = monthKey;
+      closeFloatingMenu();
+      render();
+    }
+
+    function saveEventDraft() {
+      if(!editing || !eventDraft) return;
+      if(!eventDraft.title.trim()) {
+        showToast('請輸入事件名稱');
+        return;
+      }
+
+      const normalizedTime = normalizeTimeDraft();
+      const payload = {
+        id: editingEventId || uid(),
+        createdAt: editingEventId
+          ? (events.find(e => e.id === editingEventId)?.createdAt || Date.now())
+          : Date.now(),
+        title: eventDraft.title.trim(),
+        mode: eventDraft.mode,
+        date: eventDraft.mode === 'date' ? eventDraft.date : undefined,
+        monthKey: eventDraft.mode === 'month' ? eventDraft.monthKey : undefined,
+        time: normalizedTime,
+        type: eventDraft.type,
+        notes: (eventDraft.notes || '').trim()
+      };
+
+      if(editingEventId) {
+        events = events.map(event => event.id === editingEventId ? payload : event);
+      } else {
+        events.push(payload);
+      }
+
+      const wasEditing = !!editingEventId;
+      editingEventId = null;
+      eventDraftOpen = false;
+      eventDraft = null;
+      saveAndRender();
+      showToast(wasEditing ? '已更新事件' : '已新增事件');
+    }
+
+    function deleteEvent(id) {
+      events = events.filter(event => event.id !== id);
+      meta.todayEventOrder = (meta.todayEventOrder || []).filter(v => v !== id);
+      saveAndRender();
+    }
+
+    function getStatusMenuHtml(c,i,t,s) {
+      const task = data[c].items[i].tasks[t];
+      const scheduled = !!task.scheduledDate;
+      let html = '';
+      html += `<button class="floating-option ${s==='todo'?'active':''}" onclick="changeStatus(${c},${i},${t},'todo')">• ${scheduled?'未開始':'待安排'}</button>`;
+      html += `<button class="floating-option ${s==='doing'?'active':''}" onclick="changeStatus(${c},${i},${t},'doing')">△ 進行中</button>`;
+      html += `<button class="floating-option ${s==='done'?'active':''}" onclick="changeStatus(${c},${i},${t},'done')">✓ 已完成</button>`;
+      html += `<button class="floating-option ${s==='moved'?'active':''}" onclick="changeStatus(${c},${i},${t},'moved')">→ 延期</button>`;
+      html += `<button class="floating-option ${s==='cancelled'?'active':''}" onclick="changeStatus(${c},${i},${t},'cancelled')">✕ 取消</button>`;
+      return html;
+    }
+
+    function getHourMenuHtml(c,i,t,cm) {
+      let html = '', ch = getHourPart(cm);
+      for(let h=0;h<=8;h++) {
+        html += `<button class="floating-option ${ch===h?'active':''}" onclick="updateTaskTimePart(${c},${i},${t},'hour',${h})">${h}小時</button>`;
+      }
+      return html;
+    }
+
+    function getMinuteMenuHtml(c,i,t,cm) {
+      let html = '', cmn = getMinutePart(cm);
+      for(let m=0;m<=55;m+=5) {
+        html += `<button class="floating-option ${cmn===m?'active':''}" onclick="updateTaskTimePart(${c},${i},${t},'minute',${m})">${m}分</button>`;
+      }
+      return html;
+    }
+
+    function getDateMenuHtml(c,i,t,currentDate) {
+      const options = [];
+      for(let d=0;d<30;d++) {
+        const base = new Date();
+        base.setDate(base.getDate()+d);
+        options.push(`${base.getFullYear()}-${String(base.getMonth()+1).padStart(2,'0')}-${String(base.getDate()).padStart(2,'0')}`);
+      }
+
+      let html = `<button class="floating-option ${currentDate===''?'active':''}" onclick="scheduleTaskToDate(${c},${i},${t},'')">未安排</button>`;
+      options.forEach(ds => {
+        html += `<button class="floating-option ${currentDate===ds?'active':''}" onclick="scheduleTaskToDate(${c},${i},${t},'${ds}')">${formatDateWithWeekdayLabel(ds)}${ds===todayDate?'　今天':''}</button>`;
+      });
+      return html;
+    }
+
+    function getColorMenuHtml(c,currentColor) {
+      let html = '<div class="color-grid">';
+      presetColors.forEach(color => {
+        html += `<button class="color-choice ${currentColor===color?'active':''}" style="background:${color}" onclick="setCategoryColor(${c},'${color}')"></button>`;
+      });
+      html += '</div>';
+      return html;
+    }
+
+    function getEventTypeMenuHtml() {
+      return EVENT_TYPES.map(type =>
+        `<button class="floating-option ${eventDraft?.type===type?'active':''}" onclick="setEventDraftType('${type}')">${type}</button>`
+      ).join('');
+    }
+
+    function getEventModeMenuHtml() {
+      return `
+        <button class="floating-option ${eventDraft?.mode==='date'?'active':''}" onclick="setEventDraftMode('date')">指定日期</button>
+        <button class="floating-option ${eventDraft?.mode==='month'?'active':''}" onclick="setEventDraftMode('month')">月份提醒</button>
+      `;
+    }
+
+    function getEventDateMenuHtml() {
+      const options = [];
+      for(let d=0;d<60;d++) {
+        const base = new Date();
+        base.setDate(base.getDate()+d);
+        options.push(`${base.getFullYear()}-${String(base.getMonth()+1).padStart(2,'0')}-${String(base.getDate()).padStart(2,'0')}`);
+      }
+      return options.map(ds =>
+        `<button class="floating-option ${eventDraft?.date===ds?'active':''}" onclick="setEventDraftDate('${ds}')">${formatDateWithWeekdayLabel(ds)}</button>`
+      ).join('');
+    }
+
+    function getEventMonthMenuHtml() {
+      const options = [];
+      const base = new Date(selectedDate+'T00:00:00');
+      for(let i=-1;i<12;i++) {
+        const d = new Date(base.getFullYear(), base.getMonth()+i, 1);
+        const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+        options.push(key);
+      }
+      return options.map(key =>
+        `<button class="floating-option ${eventDraft?.monthKey===key?'active':''}" onclick="setEventDraftMonth('${key}')">${monthLabel(key)}</button>`
+      ).join('');
+    }
+
+    function openFloatingMenuByKey(anchorKey, html, width=150) {
+      const anchor = document.querySelector(`[data-menu-key="${anchorKey}"]`);
+      if(!anchor) return;
+      const menu = document.getElementById('floating-menu');
+      menu.innerHTML = html;
+      menu.classList.add('show');
+      floatingAnchorKey = anchorKey;
+      floatingWidth = width;
+      repositionFloatingMenu();
+    }
+
+    function repositionFloatingMenu() {
+      if(!floatingAnchorKey) return;
+      const anchor = document.querySelector(`[data-menu-key="${floatingAnchorKey}"]`);
+      const menu = document.getElementById('floating-menu');
+      if(!anchor || !menu.classList.contains('show')) return;
+
+      const rect = anchor.getBoundingClientRect();
+      let left = rect.left;
+      let top = rect.bottom + 6;
+
+      if(left + floatingWidth > window.innerWidth - 12) left = window.innerWidth - floatingWidth - 12;
+      if(left < 12) left = 12;
+
+      const maxHeight = Math.min(window.innerHeight * 0.7, 420);
+      if(top + maxHeight > window.innerHeight - 12) {
+        top = Math.max(12, rect.top - maxHeight - 6);
+      }
+
+      menu.style.left = `${left}px`;
+      menu.style.top = `${top}px`;
+      menu.style.minWidth = `${floatingWidth}px`;
+    }
+
+    function closeFloatingMenu() {
+      const menu = document.getElementById('floating-menu');
+      menu.classList.remove('show');
+      menu.innerHTML = '';
+      floatingAnchorKey = null;
+      openMenuState = null;
+    }
+
+    function toggleFloatingMenu(type, event, c=null, i=null, t=null) {
+      if(!editing && type!=='appmenu') return;
+      event.stopPropagation();
+
+      let key='', html='', width=150;
+      if(type==='appmenu') {
+        key = event.currentTarget.dataset.menuKey;
+        html = getAppMenuHtml();
+        width = 170;
+      }
+      if(type==='color') {
+        key = event.currentTarget.dataset.menuKey;
+        html = getColorMenuHtml(c,data[c].color);
+        width = 180;
+      }
+      if(type==='status') {
+        key = event.currentTarget.dataset.menuKey;
+        html = getStatusMenuHtml(c,i,t,data[c].items[i].tasks[t].status);
+        width = 160;
+      }
+      if(type==='hour') {
+        key = event.currentTarget.dataset.menuKey;
+        html = getHourMenuHtml(c,i,t,data[c].items[i].tasks[t].estimatedMinutes);
+        width = 120;
+      }
+      if(type==='minute') {
+        key = event.currentTarget.dataset.menuKey;
+        html = getMinuteMenuHtml(c,i,t,data[c].items[i].tasks[t].estimatedMinutes);
+        width = 120;
+      }
+      if(type==='date') {
+        key = event.currentTarget.dataset.menuKey;
+        html = getDateMenuHtml(c,i,t,data[c].items[i].tasks[t].scheduledDate||'');
+        width = 220;
+      }
+      if(type==='eventtype') {
+        key = event.currentTarget.dataset.menuKey;
+        html = getEventTypeMenuHtml();
+        width = 150;
+      }
+      if(type==='eventmode') {
+        key = event.currentTarget.dataset.menuKey;
+        html = getEventModeMenuHtml();
+        width = 150;
+      }
+      if(type==='eventdate') {
+        key = event.currentTarget.dataset.menuKey;
+        html = getEventDateMenuHtml();
+        width = 220;
+      }
+      if(type==='eventmonth') {
+        key = event.currentTarget.dataset.menuKey;
+        html = getEventMonthMenuHtml();
+        width = 180;
+      }
+
+      if(openMenuState === key) {
+        closeFloatingMenu();
+        return;
+      }
+
+      openMenuState = key;
+      requestAnimationFrame(() => openFloatingMenuByKey(key, html, width));
+    }
+
+    function getActiveTaskIndexes(tasks) {
+      return tasks
+        .map((task,index)=>({task,index}))
+        .filter(row => row.task.status !== 'done' && !isHistoricalTask(row.task));
+    }
+
+    function getRecentDoneTaskIndexes(tasks) {
+      return tasks
+        .map((task,index)=>({task,index}))
+        .filter(row => row.task.status === 'done' && !isHistoricalTask(row.task));
+    }
+
+    function renderTodoList(containerId) {
+      const container = document.getElementById(containerId);
+      if(!container) return;
+
+      container.innerHTML = `<div class="category-list" id="category-list-${containerId}"></div>`;
+      const categoryList = container.querySelector(`#category-list-${containerId}`);
+
+      data.forEach((category,c) => {
+        const catColor = category.color || presetColors[c % presetColors.length];
+        const categoryDiv = document.createElement('div');
+        categoryDiv.className = 'category';
+        categoryDiv.dataset.categoryIndex = c;
+        categoryDiv.style.background = hexToRgba(catColor,0.10);
+        categoryDiv.style.borderColor = hexToRgba(catColor,0.22);
+
+        const categoryCollapsed = !!meta.collapsedCategories[category.id];
+
+        let html = `
+          <div class="category-header">
+            <div style="flex:1;min-width:0;">
+              ${category.isEditing ? `
+                <div class="inline-edit show">
+                  <input value="${escapeHtml(category.editValue || '')}"
+                         placeholder="分類名稱"
+                         oninput="data[${c}].editValue=this.value"
+                         onkeydown="if(event.key==='Enter'){saveCategoryName(${c}, this.value)}"
+                         autofocus>
+                  <button class="small save-btn" onclick="saveCategoryName(${c}, data[${c}].editValue)">儲存</button>
+                  <button class="small delete-btn" onclick="cancelEditCategory(${c})">取消</button>
+                </div>
+              ` : `
+                <div class="title-wrap">
+                  <button class="collapse-btn" onclick="toggleCategoryCollapse('${category.id}')">${categoryCollapsed ? '▸' : '▾'}</button>
+                  <div class="category-title">📁 ${escapeHtml(category.name || '未命名分類')}</div>
+                  <button class="small edit-only" onclick="startEditCategory(${c})">✎</button>
+                </div>
+              `}
+            </div>
+            <div class="edit-only">
+              <button class="small color-menu-btn" data-menu-key="color-${containerId}-${c}" onclick="toggleFloatingMenu('color', event, ${c})">
+                <span class="color-btn-circle" style="background:${catColor}"></span>
+              </button>
+              <button class="small" onclick="addItemInline(${c})">＋</button>
+              <button class="small delete-btn" onclick="deleteCategory(${c})">✕</button>
+            </div>
+          </div>
+        `;
+
+        if(!categoryCollapsed) {
+          if(!category.items.length) html += `<div class="empty-state">這個分類還沒有項目</div>`;
+          html += `<div class="item-list" data-category-index="${c}">`;
+
+          category.items.forEach((item,i) => {
+            const itemCollapsed = !!meta.collapsedItems[item.id];
+            const doneCollapsed = meta.collapsedDoneSections[item.id] !== false;
+            const activeTasks = getActiveTaskIndexes(item.tasks);
+            const recentDoneTasks = getRecentDoneTaskIndexes(item.tasks);
+
+            html += `
+              <div class="item" data-item-index="${i}" style="background:${hexToRgba(catColor,0.05)}; border-color:${hexToRgba(catColor,0.14)};">
+                <div class="item-header">
+                  <div style="flex:1;min-width:0;">
+                    ${item.isEditing ? `
+                      <div class="inline-edit show">
+                        <input value="${escapeHtml(item.editValue || '')}"
+                               placeholder="項目名稱"
+                               oninput="data[${c}].items[${i}].editValue=this.value"
+                               onkeydown="if(event.key==='Enter'){saveItemName(${c},${i}, this.value)}"
+                               autofocus>
+                        <button class="small save-btn" onclick="saveItemName(${c},${i}, data[${c}].items[${i}].editValue)">儲存</button>
+                        <button class="small delete-btn" onclick="cancelEditItem(${c},${i})">取消</button>
+                      </div>
+                    ` : `
+                      <div class="title-wrap">
+                        <span class="drag-handle">⋮⋮</span>
+                        <button class="collapse-btn" onclick="toggleItemCollapse('${item.id}')">${itemCollapsed ? '▸' : '▾'}</button>
+                        <div class="item-title">📘 ${escapeHtml(item.name || '未命名項目')}</div>
+                        <button class="small edit-only" onclick="startEditItem(${c},${i})">✎</button>
+                      </div>
+                    `}
+                  </div>
+                  <div class="edit-only">
+                    <button class="small" onclick="addTaskInline(${c},${i})">＋</button>
+                    <button class="small delete-btn" onclick="deleteItem(${c},${i})">✕</button>
+                  </div>
+                </div>
+            `;
+
+            if(!itemCollapsed) {
+              html += `<div class="tasks tasks-active" data-category-index="${c}" data-item-index="${i}">`;
+
+              if(!activeTasks.length) html += `<div class="empty-state">這個項目目前沒有未完成任務</div>`;
+
+              activeTasks.forEach(({task,index:t}) => {
+                const currentHour = getHourPart(task.estimatedMinutes);
+                const currentMinute = getMinutePart(task.estimatedMinutes);
+
+                html += `
+                  <div class="task-row"
+                       data-task-index="${t}"
+                       data-task-id="${task.id}"
+                       data-cat-index="${c}"
+                       data-item-index="${i}"
+                       draggable="${editing && !isPhoneView() ? 'true' : 'false'}"
+                       ondragstart="beginTaskDrag(${c},${i},${t})"
+                       ondragend="endTaskDrag()"
+                       style="border-left-color:${catColor};">
+                    ${task.isEditing ? `
+                      <div class="inline-edit show">
+                        <input value="${escapeHtml(task.editValue || '')}"
+                               placeholder="任務名稱"
+                               oninput="data[${c}].items[${i}].tasks[${t}].editValue=this.value"
+                               onkeydown="if(event.key==='Enter'){saveTaskName(${c},${i},${t}, this.value)}"
+                               autofocus>
+                        <button class="small save-btn" onclick="saveTaskName(${c},${i},${t}, data[${c}].items[${i}].tasks[${t}].editValue)">儲存</button>
+                        <button class="small delete-btn" onclick="cancelEditTask(${c},${i},${t})">取消</button>
+                      </div>
+                    ` : `
+                      <div class="task-row-top">
+                        <div class="task-row-left">
+                          ${editing
+                            ? `<div class="task-status-wrap">
+                                 <button class="task-status-btn" data-menu-key="status-${containerId}-${c}-${i}-${t}" onclick="toggleFloatingMenu('status', event, ${c}, ${i}, ${t})">
+                                   <span>${symbol(task.status)}</span>
+                                   <span>${statusLabel(task.status, task.scheduledDate)}</span>
+                                 </button>
+                               </div>`
+                            : `<span class="task-symbol">${symbol(task.status)}</span>`
+                          }
+                          <div class="task-main">
+                            <span class="task-text">${escapeHtml(task.text || '未命名任務')}</span>
+                            <button class="small edit-only" onclick="startEditTask(${c},${i},${t})">✎</button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="task-row-bottom">
+                        <div class="task-row-left">
+                          <span class="task-time">${formatMinutes(task.estimatedMinutes)}</span>
+                          ${task.scheduledDate ? `<span class="date-chip">${formatDateLabel(task.scheduledDate)}</span>` : ''}
+                          ${editing && !isPhoneView() ? `<span class="muted mobile-drag-hint">可直接拖曳卡片排序或排程</span>` : ``}
+                        </div>
+                        <div class="task-row-right edit-only">
+                          <button class="time-menu-btn" data-menu-key="hour-${containerId}-${c}-${i}-${t}" onclick="toggleFloatingMenu('hour', event, ${c}, ${i}, ${t})">${currentHour}小時</button>
+                          <button class="time-menu-btn" data-menu-key="minute-${containerId}-${c}-${i}-${t}" onclick="toggleFloatingMenu('minute', event, ${c}, ${i}, ${t})">${currentMinute}分</button>
+                          <button class="time-menu-btn" data-menu-key="date-${containerId}-${c}-${i}-${t}" onclick="toggleFloatingMenu('date', event, ${c}, ${i}, ${t})">${task.scheduledDate ? formatDateLabel(task.scheduledDate) : '安排日期'}</button>
+                          <button class="small delete-btn" onclick="deleteTask(${c},${i},${t})">✕</button>
+                        </div>
+                      </div>
+                    `}
+                  </div>
+                `;
+              });
+
+              html += `</div>`;
+
+              if(recentDoneTasks.length) {
+                html += `
+                  <div class="done-task-group">
+                    <div class="sub-collapse-row">
+                      <div class="muted">已完成任務（${recentDoneTasks.length}）</div>
+                      <button class="collapse-btn" onclick="toggleDoneSection('${item.id}')">${doneCollapsed ? '▸' : '▾'}</button>
+                    </div>
+                `;
+
+                if(!doneCollapsed) {
+                  recentDoneTasks.forEach(({task,index:t}) => {
+                    const currentHour = getHourPart(task.estimatedMinutes);
+                    const currentMinute = getMinutePart(task.estimatedMinutes);
+                    html += `
+                      <div class="task-row done"
+                           data-task-index="${t}"
+                           data-task-id="${task.id}"
+                           style="border-left-color:${catColor};">
+                        <div class="task-row-top">
+                          <div class="task-row-left">
+                            ${editing
+                              ? `<div class="task-status-wrap">
+                                   <button class="task-status-btn" data-menu-key="status-done-${containerId}-${c}-${i}-${t}" onclick="toggleFloatingMenu('status', event, ${c}, ${i}, ${t})">
+                                     <span>${symbol(task.status)}</span>
+                                     <span>${statusLabel(task.status, task.scheduledDate)}</span>
+                                   </button>
+                                 </div>`
+                              : `<span class="task-symbol">${symbol(task.status)}</span>`
+                            }
+                            <div class="task-main">
+                              <span class="task-text">${escapeHtml(task.text || '未命名任務')}</span>
+                              <button class="small edit-only" onclick="startEditTask(${c},${i},${t})">✎</button>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="task-row-bottom">
+                          <div class="task-row-left">
+                            <span class="task-time">${formatMinutes(task.estimatedMinutes)}</span>
+                            ${task.completedAt ? `<span class="date-chip">完成 ${formatDateLabel(task.completedAt)}</span>` : ''}
+                          </div>
+                          <div class="task-row-right edit-only">
+                            <button class="time-menu-btn" data-menu-key="hour-done-${containerId}-${c}-${i}-${t}" onclick="toggleFloatingMenu('hour', event, ${c}, ${i}, ${t})">${currentHour}小時</button>
+                            <button class="time-menu-btn" data-menu-key="minute-done-${containerId}-${c}-${i}-${t}" onclick="toggleFloatingMenu('minute', event, ${c}, ${i}, ${t})">${currentMinute}分</button>
+                            <button class="small delete-btn" onclick="deleteTask(${c},${i},${t})">✕</button>
+                          </div>
+                        </div>
+                      </div>
+                    `;
+                  });
+                }
+
+                html += `</div>`;
+              }
+            }
+
+            html += `</div>`;
+          });
+
+          html += `</div>`;
+        }
+
+        categoryDiv.innerHTML = html;
+        categoryList.appendChild(categoryDiv);
+      });
+    }
+
+    function renderCalendarDetail(targetId) {
+      const target = document.getElementById(targetId);
+      if(target) target.innerHTML = getCalendarDetailHtml();
+    }
+
+    function renderMobileEventsPanel() {
+      const target = document.getElementById('events-mobile');
+      if(!target) return;
+      const extra = calendarView==='week' ? getWeekEvents(selectedDate) : getMonthEvents(selectedDate);
+      target.innerHTML = extra.length
+        ? extra.map(eventCardHtml).join('')
+        : `<div class="empty-state">目前沒有${calendarView==='week'?'本週':'本月'}事件</div>`;
+    }
+
+    function isPhoneView() {
+      return window.matchMedia('(max-width: 860px)').matches;
+    }
+
+    function getSortableTouchOptions() {
+      return {
+        delayOnTouchOnly: true,
+        delay: 120,
+        touchStartThreshold: 4,
+        fallbackOnBody: true,
+        forceFallback: true
+      };
+    }
+
+    function scheduleTaskFromDragElement(el, dateString) {
+      if(!editing || !el) return false;
+      const c = Number(el.dataset.catIndex);
+      const i = Number(el.dataset.itemIndex);
+      const t = Number(el.dataset.taskIndex);
+      if(!Number.isInteger(c) || !Number.isInteger(i) || !Number.isInteger(t)) return false;
+      if(!data[c] || !data[c].items[i] || !data[c].items[i].tasks[t]) return false;
+      const task = data[c].items[i].tasks[t];
+      task.scheduledDate = dateString;
+      if(dateString === todayDate && !meta.todayTaskOrder.includes(task.id)) meta.todayTaskOrder.push(task.id);
+      saveAll();
+      render();
+      showToast(dateString === todayDate ? '已安排到今天' : `已安排到 ${formatDateWithWeekdayLabel(dateString)}`);
+      return true;
+    }
+
+    function destroySortables() {
+      sortableInstances.forEach(s => s.destroy());
+      sortableInstances = [];
+    }
+
+    function initSortables() {
+      destroySortables();
+      if(!editing) return;
+
+      const commonFilter = 'button, input, textarea, [data-menu-key], .task-status-btn, .collapse-btn';
+      const touchOptions = getSortableTouchOptions();
+      const allowScheduleDrops = !isPhoneView();
+
+      document.querySelectorAll('.category-list').forEach(categoryList => {
+        const sortable = new Sortable(categoryList, {
+          ...touchOptions,
+          animation: 150,
+          ghostClass: 'ghost-sort',
+          filter: commonFilter,
+          preventOnFilter: false,
+          onEnd(evt) {
+            if(evt.oldIndex === evt.newIndex) return;
+            const moved = data.splice(evt.oldIndex, 1)[0];
+            data.splice(evt.newIndex, 0, moved);
+            saveAll();
+            render();
+          }
+        });
+        sortableInstances.push(sortable);
+      });
+
+      document.querySelectorAll('.item-list').forEach(itemList => {
+        const c = Number(itemList.dataset.categoryIndex);
+        const sortable = new Sortable(itemList, {
+          ...touchOptions,
+          animation: 150,
+          ghostClass: 'ghost-sort',
+          filter: commonFilter,
+          preventOnFilter: false,
+          onEnd(evt) {
+            if(evt.oldIndex === evt.newIndex) return;
+            const items = data[c].items;
+            const moved = items.splice(evt.oldIndex, 1)[0];
+            items.splice(evt.newIndex, 0, moved);
+            saveAll();
+            render();
+          }
+        });
+        sortableInstances.push(sortable);
+      });
+
+      document.querySelectorAll('.tasks-active').forEach(taskList => {
+        const c = Number(taskList.dataset.categoryIndex);
+        const i = Number(taskList.dataset.itemIndex);
+
+        const sortable = new Sortable(taskList, {
+          ...touchOptions,
+          animation: 150,
+          ...(allowScheduleDrops ? { group: { name: 'planner-task-cards', pull: 'clone', put: false } } : {}),
+          ghostClass: 'ghost-sort',
+          filter: commonFilter,
+          preventOnFilter: false,
+          onStart(evt) {
+            const taskIndex = Number(evt.item.dataset.taskIndex);
+            dragTaskRef = { c, i, t: taskIndex };
+          },
+          onEnd(evt) {
+            dragTaskRef = null;
+            if(!evt || evt.oldIndex == null || evt.newIndex == null) return;
+            if(evt.pullMode === 'clone' || evt.from !== evt.to) return;
+            if(evt.oldIndex === evt.newIndex && evt.from === evt.to) return;
+
+            const tasks = data[c].items[i].tasks;
+            const activeTaskIndexes = getActiveTaskIndexes(tasks).map(row => row.index);
+            const movedOriginalIndex = activeTaskIndexes[evt.oldIndex];
+            const [movedTask] = tasks.splice(movedOriginalIndex, 1);
+
+            const activeAfterRemoval = getActiveTaskIndexes(tasks).map(row => row.index);
+            let insertAt = tasks.length;
+            if(evt.newIndex < activeAfterRemoval.length) {
+              insertAt = activeAfterRemoval[evt.newIndex];
+            }
+            tasks.splice(insertAt, 0, movedTask);
+
+            saveAll();
+            render();
+          }
+        });
+        sortableInstances.push(sortable);
+      });
+
+      document.querySelectorAll('[id^="today-task-list-"]').forEach(listEl => {
+        const sortable = new Sortable(listEl, {
+          ...touchOptions,
+          animation: 150,
+          ghostClass: 'ghost-sort',
+          ...(allowScheduleDrops ? { group: { name: 'planner-task-cards', pull: false, put: true } } : {}),
+          filter: commonFilter,
+          preventOnFilter: false,
+          ...(allowScheduleDrops ? { onAdd(evt) {
+            evt.item?.remove();
+            scheduleTaskFromDragElement(evt.item, todayDate);
+          } } : {}),
+          onEnd(evt) {
+            if(evt && evt.from !== evt.to) return;
+            const ids = Array.from(listEl.querySelectorAll('.today-task-card')).map(el => el.dataset.taskId).filter(Boolean);
+            meta.todayTaskOrder = ids;
+            saveAll();
+          }
+        });
+        sortableInstances.push(sortable);
+      });
+
+      if(allowScheduleDrops) {
+        document.querySelectorAll('.calendar-day[data-date]').forEach(dayEl => {
+          const sortable = new Sortable(dayEl, {
+            ...touchOptions,
+            animation: 150,
+            ghostClass: 'ghost-sort',
+            group: { name: 'planner-task-cards', pull: false, put: true },
+            sort: false,
+            filter: commonFilter,
+            preventOnFilter: false,
+            onAdd(evt) {
+              const dateString = dayEl.dataset.date;
+              evt.item?.remove();
+              scheduleTaskFromDragElement(evt.item, dateString);
+            }
+          });
+          sortableInstances.push(sortable);
+        });
+      }
+
+      document.querySelectorAll('[id^="today-event-list-"]').forEach(listEl => {
+        const sortable = new Sortable(listEl, {
+          ...touchOptions,
+          animation: 150,
+          ghostClass: 'ghost-sort',
+          filter: commonFilter,
+          preventOnFilter: false,
+          onEnd() {
+            const ids = Array.from(listEl.querySelectorAll('.event-card')).map(el => el.dataset.eventId).filter(Boolean);
+            meta.todayEventOrder = ids;
+            saveAll();
+          }
+        });
+        sortableInstances.push(sortable);
+      });
+    }
+
+    function escapeHtml(str='') {
+      return String(str)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    function updateCalendarViewButtons() {
+      document.getElementById('calendar-view-week')?.classList.toggle('active', calendarView === 'week');
+      document.getElementById('calendar-view-month')?.classList.toggle('active', calendarView === 'month');
+      document.getElementById('calendar-view-week-mobile')?.classList.toggle('active', calendarView === 'week');
+      document.getElementById('calendar-view-month-mobile')?.classList.toggle('active', calendarView === 'month');
+    }
+
+    function render() {
+      ensureIdsAndFlags();
+
+      document.getElementById('app').classList.toggle('editing', editing);
+      const e1 = document.getElementById('editSwitch');
+      if(e1) e1.checked = editing;
+      const e2 = document.getElementById('editSwitchMobile');
+      if(e2) e2.checked = editing;
+
+      renderTodaySummary('today-summary-desktop');
+      renderTodaySummary('today-summary-mobile');
+
+      document.getElementById('calendar-desktop').innerHTML = getCalendarHtml();
+      document.getElementById('calendar-mobile').innerHTML = getCalendarHtml();
+
+      renderCalendarDetail('calendar-detail-desktop');
+      renderCalendarDetail('calendar-detail-mobile');
+
+      renderTodoList('todo-desktop');
+      renderTodoList('list-mobile');
+      renderMobileEventsPanel();
+      renderHistoryPanel('history-desktop');
+      renderHistoryPanel('history-mobile');
+
+      updateCalendarViewButtons();
+      setMobileTab(mobileTab);
+      updateCloudUi();
+
+      requestAnimationFrame(() => {
+        initSortables();
+        if(openMenuState && floatingAnchorKey) repositionFloatingMenu();
+      });
+    }
+
+    document.addEventListener('click', event => {
+      const insideFloatingButton = event.target.closest('[data-menu-key]');
+      const insideFloatingMenu = event.target.closest('#floating-menu');
+      if(!insideFloatingButton && !insideFloatingMenu && openMenuState !== null) {
+        closeFloatingMenu();
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      if(floatingAnchorKey) repositionFloatingMenu();
+      setMobileTab(mobileTab);
+    });
+
+    window.addEventListener('scroll', () => {
+      if(floatingAnchorKey) repositionFloatingMenu();
+    }, true);
+
+    window.addEventListener('dragend', endTaskDrag);
+
+    initCloudClient();
+    if(supabaseClient) {
+      supabaseClient.auth.onAuthStateChange((_event, session) => {
+        cloudState.user = session?.user || null;
+        updateCloudUi();
+      });
+      refreshCloudSession();
+    }
+
+    saveAll();
+    render();
+  </script>
+</body>
+</html>
