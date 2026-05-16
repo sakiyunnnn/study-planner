@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>我的讀書計劃</title>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;500;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app" id="app" data-current-page="desk">
+    <h1>📚 我的讀書計劃</h1>
+
+    <div class="drawer-top-row">
+      <button class="drawer-open-btn" onclick="openPageDrawer()" aria-label="開啟頁面選單">☰</button>
+      <div class="current-page-label" id="current-page-label">讀書桌</div>
+    </div>
+
+    <div class="drawer-overlay" id="page-drawer-overlay" onclick="if(event.target===this) closePageDrawer()">
+      <aside class="page-drawer" aria-label="頁面選單">
+        <div class="drawer-header">
+          <div>
+            <div class="drawer-title">我的讀書計劃</div>
+          </div>
+          <button class="small delete-btn" onclick="closePageDrawer()">關閉</button>
+        </div>
+        <nav class="drawer-menu">
+          <button class="drawer-menu-btn active" id="main-menu-desk" onclick="setAppPage('desk')">讀書桌</button>
+          <button class="drawer-menu-btn" id="main-menu-scheduler" onclick="setAppPage('scheduler')">自動排程</button>
+          <button class="drawer-menu-btn" id="main-menu-analysis" onclick="setAppPage('analysis')">分析與回顧</button>
+          <button class="drawer-menu-btn" id="main-menu-timetable" onclick="setAppPage('timetable')">課表</button>
+          <button class="drawer-menu-btn" id="main-menu-record" onclick="setAppPage('record')">紀錄本</button>
+          <button class="drawer-menu-btn" id="main-menu-points" onclick="setAppPage('points')">集點卡</button>
+          <button class="drawer-menu-btn" id="main-menu-settings" onclick="setAppPage('settings')">設定</button>
+        </nav>
+        <div class="drawer-utility">
+          <button onclick="manualSave()">儲存</button>
+          <button onclick="openSyncModal()">同步</button>
+          <button onclick="openBulkImportModal()">匯入</button>
+          <button onclick="exportBackup()">備份</button>
+        </div>
+      </aside>
+    </div>
+
+
+    <div class="top-bar">
+      <div class="top-right">
+        <span style="color:#666;font-size:14px;">編輯模式</span>
+        <label class="switch">
+          <input type="checkbox" id="editSwitch" onchange="toggleEdit()">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="top-actions">
+        <button class="menu-btn" data-menu-key="appmenu-main" onclick="toggleFloatingMenu('appmenu', event)">⋯</button>
+      </div>
+    </div>
+
+    <div class="mobile-top-bar mobile-only">
+      <div class="top-right">
+        <span style="color:#666;font-size:14px;">編輯模式</span>
+        <label class="switch">
+          <input type="checkbox" id="editSwitchMobile" onchange="toggleEditFromMobile()">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="top-actions">
+        <button class="menu-btn" data-menu-key="appmenu-mobile" onclick="toggleFloatingMenu('appmenu', event)">⋯</button>
+      </div>
+    </div>
+
+    <div class="mobile-tabs mobile-only">
+      <button class="mobile-tab active" onclick="setMobileTab('overview')" id="tab-overview">今日</button>
+      <button class="mobile-tab" onclick="setMobileTab('calendar')" id="tab-calendar">行事曆</button>
+      <button class="mobile-tab" onclick="setMobileTab('todo')" id="tab-todo">任務</button>
+    </div>
+
+    <section class="desk-overview-grid desktop-only" aria-label="讀書桌概覽">
+      <div class="desk-focus-card">
+        <div class="desk-focus-kicker">COUNTDOWN</div>
+        <div class="desk-focus-title" id="desk-focus-title">重要倒數</div>
+        <div class="desk-focus-sub" id="desk-focus-sub">尚未設定倒數事件</div>
+      </div>
+      <div class="desk-metric-card">
+        <div class="desk-metric-grid">
+          <div class="desk-metric-cell"><div class="desk-metric-label">預計學習</div><div class="desk-metric-number" id="desk-metric-planned">0分</div></div>
+          <div class="desk-metric-cell"><div class="desk-metric-label">已完成</div><div class="desk-metric-number" id="desk-metric-completed">0分</div></div>
+          <div class="desk-metric-cell"><div class="desk-metric-label">完成率</div><div class="desk-metric-number" id="desk-metric-rate">0%</div></div>
+          <div class="desk-metric-cell"><div class="desk-metric-label">待完成</div><div class="desk-metric-number" id="desk-metric-remaining">0分</div></div>
+        </div>
+      </div>
+    </section>
+
+    <div class="layout desk-workspace-grid">
+      <section class="panel desktop-only desk-column-panel desk-todo-panel">
+        <div class="panel-title-row">
+          <div class="panel-title">任務商品區</div>
+          <div class="edit-only">
+            <button class="small" onclick="addCategoryInline()">＋</button>
+          </div>
+        </div>
+        <div id="todo-desktop"></div>
+      </section>
+
+      <section class="panel desktop-only desk-column-panel desk-today-panel">
+        <div class="panel-title">今日讀書單</div>
+        <div id="today-summary-desktop"></div>
+      </section>
+
+      <section class="panel desktop-only desk-column-panel desk-calendar-panel">
+        <div class="panel-title-row">
+          <div class="panel-title">今日收據</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button class="section-tab" id="calendar-view-week" onclick="setCalendarView('week')">週</button>
+            <button class="section-tab" id="calendar-view-month" onclick="setCalendarView('month')">月</button>
+            <button class="small edit-only" onclick="openEventDraft()">＋</button>
+          </div>
+        </div>
+        <div id="calendar-desktop"></div>
+        <div id="calendar-detail-desktop"></div>
+      </section>
+
+      <section class="panel mobile-only mobile-panel-hidden" id="overview-panel-mobile">
+        <div class="panel-title">今日總覽</div>
+        <div class="panel-subtitle">今天的任務與事件都集中在這裡。</div>
+        <div id="today-summary-mobile"></div>
+      </section>
+
+      <section class="panel mobile-only mobile-panel-hidden" id="calendar-panel-mobile">
+        <div class="panel-title-row">
+          <div class="panel-title">行事曆</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button class="section-tab" id="calendar-view-week-mobile" onclick="setCalendarView('week')">週</button>
+            <button class="section-tab" id="calendar-view-month-mobile" onclick="setCalendarView('month')">月</button>
+            <button class="small edit-only" onclick="openEventDraft()">＋</button>
+          </div>
+        </div>
+        <div class="panel-subtitle">可切換週／月視圖，也能新增事件。</div>
+        <div id="calendar-mobile"></div>
+        <div id="calendar-detail-mobile"></div>
+        <div class="mobile-integrated-section">
+          <div class="detail-section-title">事件整理</div>
+          <div id="events-mobile"></div>
+        </div>
+      </section>
+
+      <section class="panel mobile-only mobile-panel-hidden" id="todo-panel-mobile">
+        <div class="panel-title-row">
+          <div class="panel-title">To Do List</div>
+          <div class="edit-only">
+            <button class="small" onclick="addCategoryInline()">＋</button>
+          </div>
+        </div>
+        <div class="panel-subtitle">分類、項目可收合，已完成任務會集中整理。</div>
+        <div id="list-mobile"></div>
+      </section>
+    </div>
+
+    <section class="app-page page-shell" id="page-record">
+      <section class="panel">
+        <div class="panel-title">紀錄本</div>
+        <div id="record-page-content"></div>
+      </section>
+    </section>
+
+    <section class="app-page page-shell" id="page-points">
+      <section class="panel">
+        <div class="panel-title">集點卡</div>
+        <div id="points-page-content"></div>
+      </section>
+    </section>
+
+    <section class="app-page page-shell" id="page-scheduler">
+      <section class="panel">
+        <div class="panel-title">自動排程</div>
+        <div id="scheduler-page-content"></div>
+      </section>
+    </section>
+
+
+    <section class="app-page page-shell" id="page-analysis">
+      <section class="panel redesign-hero-card">
+        <div class="panel-title">分析與回顧</div>
+        <div id="analysis-page-content"></div>
+      </section>
+    </section>
+
+    <section class="app-page page-shell" id="page-timetable">
+      <section class="panel">
+        <div class="panel-title">課表</div>
+        <div id="timetable-page-content"></div>
+      </section>
+    </section>
+
+    <section class="app-page page-shell" id="page-settings">
+      <section class="panel">
+        <div class="panel-title">設定</div>
+        <div id="settings-page-content"></div>
+      </section>
+    </section>
+  </div>
+
+
+
+  <div id="study-detail-overlay" class="study-detail-overlay" onclick="if(event.target===this) closeStudyDetailModal()">
+    <div class="study-detail-modal">
+      <div id="study-detail-content"></div>
+    </div>
+  </div>
+
+  <div id="sync-modal-overlay" class="sync-modal-overlay" onclick="if(event.target===this) closeSyncModal()">
+    <div class="sync-modal">
+      <div class="panel-title-row" style="margin-bottom:10px;">
+        <h2>雲端同步</h2>
+        <button class="small delete-btn" onclick="closeSyncModal()">關閉</button>
+      </div>
+      <div class="sync-help">這一版支援用 Supabase 做跨裝置同步。你可以在筆電、手機、平板開同一份檔案，再登入同一個帳號，就會讀到同一份資料。</div>
+      <div class="sync-grid">
+        <div class="sync-box">
+          <div class="sync-box-title">1. 連線設定</div>
+          <input id="sync-supabase-url" class="sync-input" placeholder="Supabase Project URL">
+          <input id="sync-supabase-key" class="sync-input" placeholder="Supabase Publishable key / anon key">
+          <div class="sync-actions" style="margin-top:10px;">
+            <button class="save-btn" onclick="saveCloudSettings()">儲存設定</button>
+            <button onclick="testCloudConnection()">測試連線</button>
+            <button class="delete-btn" onclick="clearCloudSettings()">清除設定</button>
+          </div>
+          <div class="sync-note">請填 Supabase 的 Project URL 與 Publishable key（或舊版 anon key）。</div>
+        </div>
+
+        <div class="sync-box">
+          <div class="sync-box-title">2. 帳號登入</div>
+          <div class="sync-inline">
+            <input id="sync-email" class="sync-input" placeholder="Email">
+            <input id="sync-password" class="sync-input" type="password" placeholder="Password">
+          </div>
+          <div class="sync-actions" style="margin-top:10px;">
+            <button class="save-btn" onclick="cloudSignIn()">登入</button>
+            <button onclick="cloudSignUp()">註冊</button>
+            <button class="delete-btn" onclick="cloudSignOut()">登出</button>
+          </div>
+          <div class="cloud-userline" id="cloud-userline"></div>
+          <div class="sync-note">如果你開啟了 Email confirmation，註冊後要先去信箱確認，再回來登入。</div>
+        </div>
+
+        <div class="sync-box">
+          <div class="sync-box-title">3. 同步資料</div>
+          <div class="sync-actions">
+            <button class="save-btn" onclick="pushToCloud(true)">上傳目前資料到雲端</button>
+            <button onclick="pullFromCloud(true)">從雲端載入到目前裝置</button>
+          </div>
+          <div class="sync-actions" style="margin-top:8px;">
+            <label style="display:flex;align-items:center;gap:8px;color:#666;font-size:14px;">
+              <input id="sync-auto-checkbox" type="checkbox" onchange="toggleCloudAutoSync(this.checked)">
+              自動同步
+            </label>
+          </div>
+          <div id="cloud-sync-status" class="sync-status" style="margin-top:10px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <div id="history-modal-overlay" class="utility-modal-overlay" onclick="if(event.target===this) closeHistoryModal()">
+    <div class="utility-modal">
+      <div class="panel-title-row" style="margin-bottom:10px;"><h2>歷史紀錄</h2><button class="small delete-btn" onclick="closeHistoryModal()">關閉</button></div>
+      <div class="panel-subtitle">這裡會整理完成超過 7 天的任務，以及已經過去的事件。</div>
+      <div id="history-modal-content"></div>
+    </div>
+  </div>
+  <div id="bulk-import-modal-overlay" class="utility-modal-overlay" onclick="if(event.target===this) closeBulkImportModal()">
+    <div class="utility-modal">
+      <div class="panel-title-row" style="margin-bottom:10px;"><h2>批次匯入任務</h2><button class="small delete-btn" onclick="closeBulkImportModal()">關閉</button></div>
+      <div class="panel-subtitle">支援 Markdown 階層：# 分類、## 項目、### 任務。匯入時會自動跳過同一分類／項目底下已存在的同名任務。</div>
+      <textarea id="bulk-import-text" class="bulk-textarea" placeholder="# 民事訴訟法&#10;## 第一章 緒論&#10;### 民事訴訟之目的&#10;### 審判權&#10;## 第二章 管轄&#10;### 普通審判籍"></textarea>
+      <div class="sync-actions" style="margin-top:10px;"><button onclick="previewBulkImport()">預覽</button><button class="save-btn" onclick="confirmBulkImport()">匯入</button><button onclick="clearBulkImportText()">清空</button></div>
+      <div id="bulk-import-preview" class="bulk-preview"><div class="empty-state">貼上內容後可以先按「預覽」。</div></div>
+    </div>
+  </div>
+
+  <div id="floating-menu" class="floating-menu"></div>
+  <div id="toast" class="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
